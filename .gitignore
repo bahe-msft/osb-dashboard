@@ -1,0 +1,9 @@
+# direnv / Nix
+.direnv/
+result
+result-*
+
+# Go build and test artifacts
+/osb-dashboard
+*.test
+*.out
