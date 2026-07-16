@@ -1,0 +1,28 @@
+<div class="metric-grid">
+  <article class="metric-card">
+    <div class="metric-heading">
+      <span>Dashboard server</span>
+      <span class="status status-online">Online</span>
+    </div>
+    <strong class="metric-value">Healthy</strong>
+    <span class="metric-detail">Uptime: {{.Uptime}}</span>
+  </article>
+
+  <article class="metric-card">
+    <div class="metric-heading">
+      <span>OpenSandbox API</span>
+      <span class="status status-pending">Pending</span>
+    </div>
+    <strong class="metric-value">Not connected</strong>
+    <span class="metric-detail">Awaiting configuration</span>
+  </article>
+
+  <article class="metric-card">
+    <div class="metric-heading">
+      <span>Active sandboxes</span>
+      <span class="status status-neutral">Unavailable</span>
+    </div>
+    <strong class="metric-value">—</strong>
+    <span class="metric-detail">Checked {{.CheckedAt}}</span>
+  </article>
+</div>

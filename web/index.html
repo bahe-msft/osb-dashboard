@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A lightweight dashboard for OpenSandbox">
+    <title>OpenSandbox Dashboard</title>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="OpenSandbox Dashboard home">
+        <span class="brand-mark" aria-hidden="true">OS</span>
+        <span>OpenSandbox Dashboard</span>
+      </a>
+      <span class="environment">Local</span>
+    </header>
+
+    <main class="page-shell">
+      <section class="hero" aria-labelledby="page-title">
+        <p class="eyebrow">Control plane</p>
+        <h1 id="page-title">Sandbox overview</h1>
+        <p class="hero-copy">
+          Monitor and manage OpenSandbox resources from a small Go and HTMX application.
+        </p>
+      </section>
+
+      <section aria-labelledby="overview-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Live status</p>
+            <h2 id="overview-title">Overview</h2>
+          </div>
+          <span id="overview-loader" class="htmx-indicator loader">Refreshing…</span>
+        </div>
+
+        <div
+          id="overview"
+          hx-get="/dashboard/overview"
+          hx-trigger="load, every 10s"
+          hx-swap="innerHTML"
+          hx-indicator="#overview-loader"
+          aria-live="polite"
+        >
+          <div class="loading-card">Loading dashboard status…</div>
+        </div>
+        <noscript>
+          <p class="notice">JavaScript is required for live dashboard updates.</p>
+        </noscript>
+      </section>
+
+      <section class="next-step" aria-labelledby="next-step-title">
+        <p class="eyebrow">Next step</p>
+        <h2 id="next-step-title">Connect OpenSandbox</h2>
+        <p>
+          The dashboard shell is ready. Add OpenSandbox client configuration to begin
+          listing sandboxes, templates, and usage.
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <span>OpenSandbox Dashboard</span>
+      <span>Go + HTMX</span>
+    </footer>
+  </body>
+</html>

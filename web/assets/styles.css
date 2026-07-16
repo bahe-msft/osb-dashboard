@@ -1,0 +1,247 @@
+:root {
+  color-scheme: dark;
+  --background: #0a0d12;
+  --surface: #121720;
+  --surface-raised: #171e29;
+  --border: #293241;
+  --text: #f4f7fb;
+  --muted: #9ba8b7;
+  --accent: #70e1b2;
+  --accent-strong: #22c77a;
+  --warning: #f3c86a;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 15% 0%, rgb(34 199 122 / 12%), transparent 28rem),
+    var(--background);
+}
+
+.site-header,
+.page-shell,
+footer {
+  width: min(1120px, calc(100% - 2rem));
+  margin-inline: auto;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 4.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: inline-flex;
+  gap: 0.75rem;
+  align-items: center;
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.brand-mark {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  color: #06140e;
+  background: var(--accent);
+  border-radius: 0.5rem;
+  place-items: center;
+  font-size: 0.75rem;
+  letter-spacing: -0.03em;
+}
+
+.environment,
+.status {
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.page-shell {
+  padding-block: 5rem;
+}
+
+.hero {
+  max-width: 47rem;
+  margin-bottom: 4.5rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.6rem;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 1rem;
+  font-size: clamp(2.5rem, 8vw, 5.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.055em;
+}
+
+h2 {
+  margin-bottom: 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -0.03em;
+}
+
+.hero-copy,
+.next-step p {
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.loader {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.htmx-indicator {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.htmx-request.htmx-indicator,
+.htmx-request .htmx-indicator {
+  opacity: 1;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.metric-card,
+.loading-card,
+.next-step,
+.notice {
+  border: 1px solid var(--border);
+  background: linear-gradient(145deg, var(--surface-raised), var(--surface));
+  border-radius: 0.9rem;
+}
+
+.metric-card {
+  min-height: 12.5rem;
+  padding: 1.25rem;
+}
+
+.metric-heading {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.status-online {
+  color: var(--accent);
+  border-color: rgb(112 225 178 / 35%);
+  background: rgb(112 225 178 / 8%);
+}
+
+.status-pending {
+  color: var(--warning);
+  border-color: rgb(243 200 106 / 35%);
+  background: rgb(243 200 106 / 8%);
+}
+
+.status-neutral {
+  color: var(--muted);
+}
+
+.metric-value {
+  display: block;
+  margin-top: 2.6rem;
+  font-size: 1.8rem;
+  letter-spacing: -0.04em;
+}
+
+.metric-detail {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.loading-card,
+.notice {
+  padding: 2rem;
+  color: var(--muted);
+}
+
+.next-step {
+  max-width: 47rem;
+  margin-top: 4rem;
+  padding: 1.5rem;
+}
+
+.next-step h2 {
+  margin-bottom: 0.7rem;
+}
+
+.next-step p {
+  margin-bottom: 0;
+}
+
+footer {
+  display: flex;
+  justify-content: space-between;
+  padding-block: 1.5rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 760px) {
+  .page-shell {
+    padding-block: 3rem;
+  }
+
+  .hero {
+    margin-bottom: 3rem;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-card {
+    min-height: 10.5rem;
+  }
+}
