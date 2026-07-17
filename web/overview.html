@@ -1,77 +1,50 @@
-<div class="alert connection-alert" role="status">
-  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-    <circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path>
-  </svg>
-  <strong>OpenSandbox API is not configured</strong>
-  <section>Sandbox data will appear here after the backend connection is added.</section>
+<div class="api-notice" role="status">
+  <span aria-hidden="true"></span>
+  <strong>OpenSandbox API not configured.</strong>
+  Sandbox data will appear after the backend connection is added.
 </div>
 
-<div class="metrics-grid">
-  <article class="card metric-card" data-size="sm">
-    <header>
-      <p>Total sandboxes</p>
-      <div class="card-action metric-icon">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="m21 8-9 5-9-5"></path><path d="m3 12 9 5 9-5"></path><path d="m3 16 9 5 9-5"></path><path d="m3 4 9 5 9-5-9-3-9 3Z"></path>
-        </svg>
-      </div>
-    </header>
-    <section>
-      <strong class="metric-value">—</strong>
-      <span class="metric-detail">Across all states</span>
-    </section>
-  </article>
+<section class="summary-grid" aria-label="Sandbox summary">
+  <div class="summary-item">
+    <span class="summary-label"><i></i>Total sandboxes</span>
+    <strong class="summary-value">—</strong>
+    <span class="summary-detail">Across all states</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label"><i class="running"></i>Running</span>
+    <strong class="summary-value">—</strong>
+    <span class="summary-detail">Ready for work</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label"><i class="paused"></i>Paused</span>
+    <strong class="summary-value">—</strong>
+    <span class="summary-detail">State retained</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label"><i class="failed"></i>Needs attention</span>
+    <strong class="summary-value">—</strong>
+    <span class="summary-detail">Failed sandboxes</span>
+  </div>
+</section>
 
-  <article class="card metric-card" data-size="sm">
-    <header>
-      <p>Running</p>
-      <div class="card-action metric-icon">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg>
-      </div>
-    </header>
-    <section>
-      <strong class="metric-value">—</strong>
-      <span class="metric-detail">Ready for work</span>
-    </section>
-  </article>
-
-  <article class="card metric-card" data-size="sm">
-    <header>
-      <p>Paused</p>
-      <div class="card-action metric-icon">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect width="4" height="14" x="6" y="5" rx="1"></rect><rect width="4" height="14" x="14" y="5" rx="1"></rect></svg>
-      </div>
-    </header>
-    <section>
-      <strong class="metric-value">—</strong>
-      <span class="metric-detail">State retained</span>
-    </section>
-  </article>
-
-  <article class="card metric-card" data-size="sm">
-    <header>
-      <p>Needs attention</p>
-      <div class="card-action metric-icon">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg>
-      </div>
-    </header>
-    <section>
-      <strong class="metric-value">—</strong>
-      <span class="metric-detail">Failed sandboxes</span>
-    </section>
-  </article>
-</div>
-
-<article class="card sandboxes-card">
-  <header>
-    <div>
-      <h2>Recent sandboxes</h2>
-      <p>The latest sandbox lifecycle activity.</p>
+<section class="activity-panel" aria-labelledby="recent-sandboxes-title">
+  <header class="panel-header">
+    <div class="panel-heading">
+      <h2 id="recent-sandboxes-title">Sandboxes</h2>
+      <span class="panel-count">0</span>
     </div>
-    <div class="card-action"><span class="badge" data-variant="outline">Unavailable</span></div>
+    <div class="panel-actions">
+      <button class="btn" data-size="sm" data-variant="ghost" type="button" disabled>
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+        Filter
+      </button>
+      <button class="btn" data-size="icon-sm" data-variant="ghost" type="button" disabled aria-label="Display options">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16v14H4zM9 5v14"></path></svg>
+      </button>
+    </div>
   </header>
 
-  <section class="table-container">
+  <div class="table-container">
     <table class="table">
       <thead>
         <tr>
@@ -85,25 +58,23 @@
       <tbody>
         <tr>
           <td colspan="5">
-            <section class="empty sandbox-empty">
-              <header>
-                <figure>
-                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path d="m21 8-9 5-9-5"></path><path d="m3 12 9 5 9-5"></path><path d="m3 16 9 5 9-5"></path><path d="m3 4 9 5 9-5-9-3-9 3Z"></path>
-                  </svg>
-                </figure>
-                <h3>No sandbox data yet</h3>
-                <p>Awaiting configuration of the OpenSandbox API.</p>
-              </header>
-            </section>
+            <div class="sandbox-empty">
+              <div>
+                <span class="empty-icon">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m21 8-9 5-9-5"></path><path d="m3 12 9 5 9-5"></path><path d="m3 4 9 5 9-5-9-3-9 3Z"></path></svg>
+                </span>
+                <h3>No sandboxes yet</h3>
+                <p>Connect the OpenSandbox API to see your resources.</p>
+              </div>
+            </div>
           </td>
         </tr>
       </tbody>
     </table>
-  </section>
+  </div>
 
-  <footer>
-    <span>Dashboard uptime: {{.Uptime}}</span>
-    <span>Last checked {{.CheckedAt}}</span>
+  <footer class="panel-footer">
+    <span>Dashboard uptime {{.Uptime}}</span>
+    <span>Updated {{.CheckedAt}}</span>
   </footer>
-</article>
+</section>

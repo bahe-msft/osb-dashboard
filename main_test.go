@@ -30,7 +30,7 @@ func TestRoutes(t *testing.T) {
 			name:        "overview fragment",
 			path:        "/dashboard/overview",
 			contentType: "text/html; charset=utf-8",
-			contains:    "Awaiting configuration",
+			contains:    "OpenSandbox API not configured",
 		},
 		{
 			name:        "health check",
