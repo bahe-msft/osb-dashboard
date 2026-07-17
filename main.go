@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -22,7 +21,6 @@ var webFiles embed.FS
 
 type application struct {
 	startedAt        time.Time
-	assets           http.Handler
 	overviewTemplate *template.Template
 }
 
@@ -81,11 +79,6 @@ func run() error {
 }
 
 func newApplication() (*application, error) {
-	assetsFS, err := fs.Sub(webFiles, "web/assets")
-	if err != nil {
-		return nil, fmt.Errorf("load web assets: %w", err)
-	}
-
 	overviewTemplate, err := template.ParseFS(webFiles, "web/overview.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse overview template: %w", err)
@@ -93,7 +86,6 @@ func newApplication() (*application, error) {
 
 	return &application{
 		startedAt:        time.Now(),
-		assets:           http.FileServer(http.FS(assetsFS)),
 		overviewTemplate: overviewTemplate,
 	}, nil
 }
@@ -103,7 +95,6 @@ func (app *application) routes() http.Handler {
 	mux.HandleFunc("GET /{$}", app.index)
 	mux.HandleFunc("GET /dashboard/overview", app.overview)
 	mux.HandleFunc("GET /healthz", health)
-	mux.Handle("GET /assets/", http.StripPrefix("/assets/", app.assets))
 
 	return mux
 }

@@ -1,28 +1,109 @@
-<div class="metric-grid">
-  <article class="metric-card">
-    <div class="metric-heading">
-      <span>Dashboard server</span>
-      <span class="status status-online">Online</span>
-    </div>
-    <strong class="metric-value">Healthy</strong>
-    <span class="metric-detail">Uptime: {{.Uptime}}</span>
+<div class="alert connection-alert" role="status">
+  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path>
+  </svg>
+  <strong>OpenSandbox API is not configured</strong>
+  <section>Sandbox data will appear here after the backend connection is added.</section>
+</div>
+
+<div class="metrics-grid">
+  <article class="card metric-card" data-size="sm">
+    <header>
+      <p>Total sandboxes</p>
+      <div class="card-action metric-icon">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="m21 8-9 5-9-5"></path><path d="m3 12 9 5 9-5"></path><path d="m3 16 9 5 9-5"></path><path d="m3 4 9 5 9-5-9-3-9 3Z"></path>
+        </svg>
+      </div>
+    </header>
+    <section>
+      <strong class="metric-value">—</strong>
+      <span class="metric-detail">Across all states</span>
+    </section>
   </article>
 
-  <article class="metric-card">
-    <div class="metric-heading">
-      <span>OpenSandbox API</span>
-      <span class="status status-pending">Pending</span>
-    </div>
-    <strong class="metric-value">Not connected</strong>
-    <span class="metric-detail">Awaiting configuration</span>
+  <article class="card metric-card" data-size="sm">
+    <header>
+      <p>Running</p>
+      <div class="card-action metric-icon">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg>
+      </div>
+    </header>
+    <section>
+      <strong class="metric-value">—</strong>
+      <span class="metric-detail">Ready for work</span>
+    </section>
   </article>
 
-  <article class="metric-card">
-    <div class="metric-heading">
-      <span>Active sandboxes</span>
-      <span class="status status-neutral">Unavailable</span>
-    </div>
-    <strong class="metric-value">—</strong>
-    <span class="metric-detail">Checked {{.CheckedAt}}</span>
+  <article class="card metric-card" data-size="sm">
+    <header>
+      <p>Paused</p>
+      <div class="card-action metric-icon">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect width="4" height="14" x="6" y="5" rx="1"></rect><rect width="4" height="14" x="14" y="5" rx="1"></rect></svg>
+      </div>
+    </header>
+    <section>
+      <strong class="metric-value">—</strong>
+      <span class="metric-detail">State retained</span>
+    </section>
+  </article>
+
+  <article class="card metric-card" data-size="sm">
+    <header>
+      <p>Needs attention</p>
+      <div class="card-action metric-icon">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg>
+      </div>
+    </header>
+    <section>
+      <strong class="metric-value">—</strong>
+      <span class="metric-detail">Failed sandboxes</span>
+    </section>
   </article>
 </div>
+
+<article class="card sandboxes-card">
+  <header>
+    <div>
+      <h2>Recent sandboxes</h2>
+      <p>The latest sandbox lifecycle activity.</p>
+    </div>
+    <div class="card-action"><span class="badge" data-variant="outline">Unavailable</span></div>
+  </header>
+
+  <section class="table-container">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Sandbox</th>
+          <th>State</th>
+          <th>Source</th>
+          <th>Created</th>
+          <th>Expires</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td colspan="5">
+            <section class="empty sandbox-empty">
+              <header>
+                <figure>
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="m21 8-9 5-9-5"></path><path d="m3 12 9 5 9-5"></path><path d="m3 16 9 5 9-5"></path><path d="m3 4 9 5 9-5-9-3-9 3Z"></path>
+                  </svg>
+                </figure>
+                <h3>No sandbox data yet</h3>
+                <p>Awaiting configuration of the OpenSandbox API.</p>
+              </header>
+            </section>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <span>Dashboard uptime: {{.Uptime}}</span>
+    <span>Last checked {{.CheckedAt}}</span>
+  </footer>
+</article>

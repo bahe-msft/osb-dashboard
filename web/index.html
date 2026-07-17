@@ -5,64 +5,415 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="A lightweight dashboard for OpenSandbox">
     <title>OpenSandbox Dashboard</title>
-    <link rel="stylesheet" href="/assets/styles.css">
-    <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/basecoat-css@1.0.2/dist/basecoat.cdn.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/basecoat-css@1.0.2/dist/js/all.min.js" defer></script>
+    <script src="https://unpkg.com/htmx.org@2.0.10" defer></script>
+    <style>
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background: color-mix(in oklch, var(--muted) 35%, var(--background));
+      }
+
+      svg.icon {
+        width: 1rem;
+        height: 1rem;
+      }
+
+      .sidebar nav > header {
+        min-height: 4rem;
+        justify-content: center;
+        padding: 0 1rem;
+        border-bottom: 1px solid var(--sidebar-border);
+      }
+
+      .app-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: var(--sidebar-foreground);
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 2rem;
+        height: 2rem;
+        border-radius: var(--radius-md);
+        color: var(--sidebar-primary-foreground);
+        background: var(--sidebar-primary);
+        place-items: center;
+        font-size: 0.7rem;
+        font-weight: 700;
+      }
+
+      .sidebar nav > section {
+        padding: 0.75rem;
+      }
+
+      .sidebar nav > section h3 {
+        margin: 0.75rem 0.5rem 0.4rem;
+        color: var(--muted-foreground);
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .sidebar nav > section ul {
+        gap: 0.25rem;
+      }
+
+      .sidebar nav > section li > a,
+      .sidebar nav > section li > span {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.55rem 0.65rem;
+        border-radius: var(--radius-md);
+        color: var(--sidebar-foreground);
+        font-size: 0.875rem;
+        text-decoration: none;
+      }
+
+      .sidebar nav > section li > a[aria-current="page"] {
+        background: var(--sidebar-accent);
+        font-weight: 500;
+      }
+
+      .sidebar nav > section li > span[aria-disabled="true"] {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+
+      .sidebar nav > footer {
+        padding: 1rem;
+        border-top: 1px solid var(--sidebar-border);
+      }
+
+      .backend-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--muted-foreground);
+        font-size: 0.75rem;
+      }
+
+      .status-dot {
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 999px;
+        background: #10b981;
+      }
+
+      .app-header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        min-height: 4rem;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0 1.5rem;
+        border-bottom: 1px solid var(--border);
+        background: color-mix(in oklch, var(--background) 92%, transparent);
+        backdrop-filter: blur(8px);
+      }
+
+      .header-title {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .header-title strong,
+      .header-title small {
+        display: block;
+      }
+
+      .header-title small {
+        margin-top: 0.15rem;
+        color: var(--muted-foreground);
+      }
+
+      .page-content {
+        width: min(100%, 88rem);
+        margin: 0 auto;
+        padding: 2rem;
+      }
+
+      .page-heading {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .page-heading h1 {
+        margin: 0;
+        font-size: 1.875rem;
+        line-height: 1.15;
+        letter-spacing: -0.03em;
+      }
+
+      .page-heading p {
+        margin: 0.35rem 0 0;
+        color: var(--muted-foreground);
+        font-size: 0.875rem;
+      }
+
+      .refresh-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+
+      .htmx-indicator {
+        opacity: 0;
+      }
+
+      .htmx-request.htmx-indicator,
+      .htmx-request .htmx-indicator {
+        opacity: 1;
+      }
+
+      .loading-grid,
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1rem;
+      }
+
+      .loading-card {
+        height: 8rem;
+      }
+
+      .connection-alert {
+        margin-bottom: 1.5rem;
+        border-color: #fcd34d;
+        background: #fffbeb;
+        color: #78350f;
+      }
+
+      .connection-alert section {
+        color: #92400e;
+      }
+
+      .metric-card header {
+        min-height: 2rem;
+      }
+
+      .metric-card header > p {
+        color: var(--muted-foreground);
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+
+      .metric-icon {
+        display: grid;
+        width: 2rem;
+        height: 2rem;
+        border-radius: var(--radius-md);
+        background: var(--muted);
+        color: var(--muted-foreground);
+        place-items: center;
+      }
+
+      .metric-value {
+        display: block;
+        font-size: 1.875rem;
+        line-height: 1;
+        letter-spacing: -0.04em;
+      }
+
+      .metric-detail {
+        display: block;
+        margin-top: 0.4rem;
+        color: var(--muted-foreground);
+        font-size: 0.75rem;
+      }
+
+      .sandboxes-card {
+        margin-top: 1.5rem;
+      }
+
+      .sandboxes-card > header,
+      .sandboxes-card > footer {
+        align-items: center;
+      }
+
+      .sandbox-empty {
+        min-height: 14rem;
+        padding: 2rem;
+      }
+
+      .sandbox-empty p {
+        max-width: 25rem;
+      }
+
+      .sandboxes-card > footer {
+        justify-content: space-between;
+        color: var(--muted-foreground);
+        font-size: 0.75rem;
+      }
+
+      .mobile-only {
+        display: none;
+      }
+
+      @media (max-width: 72rem) {
+        .metrics-grid,
+        .loading-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 47.99rem) {
+        .mobile-only {
+          display: inline-flex;
+        }
+
+        .desktop-only {
+          display: none;
+        }
+
+        .app-header {
+          padding: 0 1rem;
+        }
+
+        .page-content {
+          padding: 1.25rem 1rem;
+        }
+
+        .page-heading {
+          align-items: center;
+        }
+
+        .metrics-grid,
+        .loading-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
   </head>
   <body>
-    <header class="site-header">
-      <a class="brand" href="/" aria-label="OpenSandbox Dashboard home">
-        <span class="brand-mark" aria-hidden="true">OS</span>
-        <span>OpenSandbox Dashboard</span>
-      </a>
-      <span class="environment">Local</span>
-    </header>
+    <aside id="sidebar" class="sidebar" data-side="left">
+      <nav aria-label="Primary navigation">
+        <header>
+          <a class="app-brand" href="/" aria-label="OpenSandbox Dashboard home">
+            <span class="brand-mark" aria-hidden="true">OS</span>
+            <span>OpenSandbox</span>
+          </a>
+        </header>
 
-    <main class="page-shell">
-      <section class="hero" aria-labelledby="page-title">
-        <p class="eyebrow">Control plane</p>
-        <h1 id="page-title">Sandbox overview</h1>
-        <p class="hero-copy">
-          Monitor and manage OpenSandbox resources from a small Go and HTMX application.
-        </p>
-      </section>
-
-      <section aria-labelledby="overview-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Live status</p>
-            <h2 id="overview-title">Overview</h2>
+        <section class="scrollbar-sm">
+          <div role="group" aria-labelledby="navigation-label">
+            <h3 id="navigation-label">Workspace</h3>
+            <ul>
+              <li>
+                <a href="/" aria-current="page">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect>
+                  </svg>
+                  <span>Overview</span>
+                </a>
+              </li>
+              <li>
+                <span aria-disabled="true">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="m21 8-9 5-9-5"></path><path d="m3 12 9 5 9-5"></path><path d="m3 16 9 5 9-5"></path><path d="m3 4 9 5 9-5-9-3-9 3Z"></path>
+                  </svg>
+                  <span>Sandboxes</span>
+                </span>
+              </li>
+              <li>
+                <span aria-disabled="true">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M12 2 2 7l10 5 10-5-10-5Z"></path><path d="m2 17 10 5 10-5"></path><path d="m2 12 10 5 10-5"></path>
+                  </svg>
+                  <span>Snapshots</span>
+                </span>
+              </li>
+            </ul>
           </div>
-          <span id="overview-loader" class="htmx-indicator loader">Refreshing…</span>
+        </section>
+
+        <footer>
+          <div class="backend-status">
+            <span class="status-dot"></span>
+            Dashboard backend connected
+          </div>
+        </footer>
+      </nav>
+    </aside>
+
+    <div class="app-main">
+      <header class="app-header">
+        <div class="header-title">
+          <button class="btn mobile-only" data-size="icon-sm" data-variant="ghost" type="button" onclick="document.getElementById('sidebar')?.toggle()" aria-label="Open navigation">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 12h16M4 6h16M4 18h16"></path></svg>
+          </button>
+          <div>
+            <strong>Overview</strong>
+            <small class="desktop-only">Monitor your OpenSandbox environment</small>
+          </div>
+        </div>
+        <button class="btn" type="button" disabled title="OpenSandbox API configuration is not available yet">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          <span class="desktop-only">New sandbox</span>
+        </button>
+      </header>
+
+      <main class="page-content">
+        <div class="page-heading">
+          <div>
+            <h1>Dashboard</h1>
+            <p>A quick view of sandbox health and activity.</p>
+          </div>
+          <button
+            class="btn"
+            data-variant="outline"
+            type="button"
+            hx-get="/dashboard/overview"
+            hx-target="#overview"
+            hx-swap="innerHTML"
+            hx-indicator="#overview-loader"
+          >
+            <span class="refresh-label">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"></path></svg>
+              Refresh
+              <span id="overview-loader" class="htmx-indicator">…</span>
+            </span>
+          </button>
         </div>
 
-        <div
+        <section
           id="overview"
           hx-get="/dashboard/overview"
-          hx-trigger="load, every 10s"
+          hx-trigger="load, every 30s"
           hx-swap="innerHTML"
           hx-indicator="#overview-loader"
           aria-live="polite"
         >
-          <div class="loading-card">Loading dashboard status…</div>
-        </div>
+          <div class="loading-grid" aria-label="Loading dashboard">
+            <div class="skeleton loading-card"></div>
+            <div class="skeleton loading-card"></div>
+            <div class="skeleton loading-card"></div>
+            <div class="skeleton loading-card"></div>
+          </div>
+        </section>
+
         <noscript>
-          <p class="notice">JavaScript is required for live dashboard updates.</p>
+          <div class="alert connection-alert">
+            <strong>JavaScript required</strong>
+            <section>JavaScript is required for live dashboard updates.</section>
+          </div>
         </noscript>
-      </section>
-
-      <section class="next-step" aria-labelledby="next-step-title">
-        <p class="eyebrow">Next step</p>
-        <h2 id="next-step-title">Connect OpenSandbox</h2>
-        <p>
-          The dashboard shell is ready. Add OpenSandbox client configuration to begin
-          listing sandboxes, templates, and usage.
-        </p>
-      </section>
-    </main>
-
-    <footer>
-      <span>OpenSandbox Dashboard</span>
-      <span>Go + HTMX</span>
-    </footer>
+      </main>
+    </div>
   </body>
 </html>
