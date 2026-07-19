@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"flag"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -11,6 +12,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"sort"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -21,24 +25,57 @@ const defaultHTTPAddr = ":8080"
 var webFiles embed.FS
 
 type application struct {
-	startedAt        time.Time
 	assets           http.Handler
+	kubeconfigPath   string
 	overviewTemplate *template.Template
 }
 
-type overviewData struct {
-	CheckedAt string
-	Uptime    string
+type commandConfig struct {
+	kubeconfigPath string
 }
 
+type sandboxView struct {
+	Name     string
+	State    string
+	Detail   string
+	Metadata string
+}
+
+type sandboxStateCount struct {
+	State string
+	Count int
+}
+
+type sandboxGroup struct {
+	State     string
+	Label     string
+	Sandboxes []sandboxView
+}
+
+type overviewData struct {
+	Total       int
+	StateCounts []sandboxStateCount
+	Groups      []sandboxGroup
+}
+
+var defaultSandboxStates = []string{"running", "paused", "failed"}
+
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:]); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
 		log.Fatal(err)
 	}
 }
 
-func run() error {
-	app, err := newApplication()
+func run(args []string) error {
+	config, err := parseCommandConfig(args)
+	if err != nil {
+		return err
+	}
+
+	app, err := newApplication(config.kubeconfigPath)
 	if err != nil {
 		return err
 	}
@@ -72,7 +109,7 @@ func run() error {
 		}
 	}()
 
-	log.Printf("OpenSandbox dashboard listening on http://localhost%s", addr)
+	log.Printf("OpenSandbox dashboard listening on %s using kubeconfig %s", addr, app.kubeconfigPath)
 	if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve dashboard: %w", err)
 	}
@@ -80,7 +117,45 @@ func run() error {
 	return nil
 }
 
-func newApplication() (*application, error) {
+func parseCommandConfig(args []string) (commandConfig, error) {
+	var config commandConfig
+
+	flags := flag.NewFlagSet("osb-dashboard", flag.ContinueOnError)
+	flags.StringVar(
+		&config.kubeconfigPath,
+		"kubeconfig",
+		"",
+		"path to the kubeconfig for a cluster with OpenSandbox deployed",
+	)
+
+	if err := flags.Parse(args); err != nil {
+		return commandConfig{}, err
+	}
+	if flags.NArg() != 0 {
+		return commandConfig{}, fmt.Errorf("unexpected positional arguments: %v", flags.Args())
+	}
+	if config.kubeconfigPath == "" {
+		return commandConfig{}, errors.New("--kubeconfig is required")
+	}
+
+	resolvedPath, err := filepath.Abs(config.kubeconfigPath)
+	if err != nil {
+		return commandConfig{}, fmt.Errorf("resolve kubeconfig path: %w", err)
+	}
+
+	kubeconfig, err := os.Open(resolvedPath)
+	if err != nil {
+		return commandConfig{}, fmt.Errorf("open kubeconfig %q: %w", resolvedPath, err)
+	}
+	if err := kubeconfig.Close(); err != nil {
+		return commandConfig{}, fmt.Errorf("close kubeconfig %q: %w", resolvedPath, err)
+	}
+
+	config.kubeconfigPath = resolvedPath
+	return config, nil
+}
+
+func newApplication(kubeconfigPath string) (*application, error) {
 	assetsFS, err := fs.Sub(webFiles, "web/assets")
 	if err != nil {
 		return nil, fmt.Errorf("load web assets: %w", err)
@@ -92,8 +167,8 @@ func newApplication() (*application, error) {
 	}
 
 	return &application{
-		startedAt:        time.Now(),
 		assets:           http.FileServer(http.FS(assetsFS)),
+		kubeconfigPath:   kubeconfigPath,
 		overviewTemplate: overviewTemplate,
 	}, nil
 }
@@ -120,10 +195,7 @@ func (app *application) index(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) overview(w http.ResponseWriter, r *http.Request) {
-	data := overviewData{
-		CheckedAt: time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
-		Uptime:    formatDuration(time.Since(app.startedAt)),
-	}
+	data := newOverviewData(nil)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := app.overviewTemplate.Execute(w, data); err != nil {
@@ -131,15 +203,66 @@ func (app *application) overview(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func newOverviewData(sandboxes []sandboxView) overviewData {
+	byState := make(map[string][]sandboxView)
+	for _, sandbox := range sandboxes {
+		state := normalizeSandboxState(sandbox.State)
+		sandbox.State = state
+		byState[state] = append(byState[state], sandbox)
+	}
+
+	states := append([]string(nil), defaultSandboxStates...)
+	knownStates := make(map[string]bool, len(states))
+	for _, state := range states {
+		knownStates[state] = true
+	}
+
+	var additionalStates []string
+	for state := range byState {
+		if !knownStates[state] {
+			additionalStates = append(additionalStates, state)
+		}
+	}
+	sort.Strings(additionalStates)
+	states = append(states, additionalStates...)
+
+	data := overviewData{Total: len(sandboxes)}
+	for _, state := range states {
+		stateSandboxes := byState[state]
+		data.StateCounts = append(data.StateCounts, sandboxStateCount{
+			State: state,
+			Count: len(stateSandboxes),
+		})
+		if len(stateSandboxes) == 0 {
+			continue
+		}
+		data.Groups = append(data.Groups, sandboxGroup{
+			State:     state,
+			Label:     sandboxStateLabel(state),
+			Sandboxes: stateSandboxes,
+		})
+	}
+
+	return data
+}
+
+func normalizeSandboxState(state string) string {
+	state = strings.ToLower(strings.TrimSpace(state))
+	if state == "" {
+		return "unknown"
+	}
+	return state
+}
+
+func sandboxStateLabel(state string) string {
+	words := strings.Fields(strings.ReplaceAll(state, "-", " "))
+	for index, word := range words {
+		words[index] = strings.ToUpper(word[:1]) + word[1:]
+	}
+	return strings.Join(words, " ")
+}
+
 func health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte("ok\n"))
-}
-
-func formatDuration(duration time.Duration) string {
-	if duration < time.Second {
-		return "less than a second"
-	}
-
-	return duration.Truncate(time.Second).String()
 }

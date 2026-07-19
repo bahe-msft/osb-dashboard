@@ -76,13 +76,18 @@ label {
 
 button:focus-visible,
 a:focus-visible,
+[role="button"]:focus-visible,
 label:has(input:focus-visible) {
   outline: 2px solid color-mix(in srgb, var(--os-green) 60%, white);
   outline-offset: 2px;
 }
 
+button:not(:disabled) {
+  cursor: pointer;
+}
+
 button:disabled {
-  cursor: default;
+  cursor: not-allowed;
 }
 
 .app-shell {
@@ -262,7 +267,7 @@ button:disabled {
 }
 
 .nav-item[aria-disabled="true"] {
-  cursor: default;
+  cursor: not-allowed;
 }
 
 .nav-item-icon {
@@ -394,6 +399,7 @@ button:disabled {
   border-radius: 999px;
   color: var(--os-muted);
   background: #fbfbfc;
+  cursor: pointer;
   font-weight: 560;
   text-decoration: none;
   user-select: none;
@@ -410,37 +416,65 @@ button:disabled {
   font-weight: 520;
 }
 
-.connection-notice {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  min-height: 58px;
-  margin: 10px 24px 0;
-  padding: 8px 0;
-  color: var(--os-muted);
+.state-groups {
+  min-height: calc(100vh - 152px);
 }
 
-.connection-copy {
+.empty-state {
   display: flex;
-  min-width: 0;
-  align-items: baseline;
-  gap: 8px;
+  width: calc(100% - 24px);
+  max-width: 720px;
+  min-height: 260px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  margin: 12px auto;
+  padding: 48px 24px;
+  border: 1px dashed #d4d4d8;
+  border-radius: 10px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.connection-copy strong {
-  flex: 0 0 auto;
+.empty-state:hover {
+  border-color: var(--os-subtle);
+  background: #fbfbfc;
+}
+
+.empty-state-icon {
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 14px;
+  border: 1px solid var(--os-border);
+  border-radius: 10px;
+  color: var(--os-muted);
+  background: var(--os-bg);
+  place-items: center;
+}
+
+.empty-state-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.8;
+}
+
+.empty-state h2 {
+  margin: 0;
   color: var(--os-text);
-  font-weight: 560;
+  font-size: 14px;
+  font-weight: 650;
 }
 
-.connection-copy span {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--os-subtle);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.empty-state p {
+  max-width: 360px;
+  margin: 6px 0 0;
+  color: var(--os-muted);
+  font-size: 13px;
 }
 
 .sandbox-group {
@@ -683,22 +717,15 @@ button:disabled {
     border-radius: 0;
   }
 
-  .connection-notice {
-    margin-right: 16px;
-    margin-left: 16px;
+  .state-groups {
+    min-height: calc(100vh - 112px);
   }
 
-  .connection-copy {
-    display: block;
+  .empty-state {
+    min-height: 240px;
   }
 
-  .connection-copy span {
-    display: block;
-    margin-top: 2px;
-  }
-
-  .sandbox-row .chip,
-  .connection-notice > .chip {
+  .sandbox-row .chip {
     display: none;
   }
 }
@@ -722,7 +749,14 @@ button:disabled {
     min-height: 52px;
   }
 
-  .connection-copy span,
+  .state-groups {
+    min-height: calc(100vh - 106px);
+  }
+
+  .empty-state {
+    min-height: 220px;
+  }
+
   .sandbox-updated {
     overflow: hidden;
     text-overflow: ellipsis;
