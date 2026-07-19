@@ -7,3 +7,8 @@ result-*
 /osb-dashboard
 *.test
 *.out
+
+# Playwright temporary artifacts (keep the CLI configuration tracked)
+.playwright/*
+!.playwright/cli.config.json
+.playwright-cli/
