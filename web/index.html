@@ -8,6 +8,9 @@
       (function () {
         var sidebar = localStorage.getItem('opensandbox-sidebar');
         if (sidebar) { document.documentElement.setAttribute('data-sidebar', sidebar); }
+        var savedTheme = localStorage.getItem('opensandbox-theme');
+        var preferredTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dim' : 'corporate';
+        document.documentElement.setAttribute('data-theme', savedTheme || preferredTheme);
         window.osbLiveUpdatesEnabled = localStorage.getItem('opensandbox-live-updates') !== 'paused';
         window.osbSandboxFilter = localStorage.getItem('opensandbox-state-filter') || 'all';
       })();
@@ -54,10 +57,20 @@
             <span class="nav-item-icon"><i data-lucide="activity"></i></span>
             <span class="nav-item-label">Activity</span>
           </span>
-          <span class="nav-item" aria-disabled="true">
-            <span class="nav-item-icon"><i data-lucide="settings"></i></span>
-            <span class="nav-item-label">Settings</span>
-          </span>
+          <div class="nav-menu">
+            <button id="settings-menu-toggle" class="nav-item" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="settings-submenu">
+              <span class="nav-item-icon"><i data-lucide="settings"></i></span>
+              <span class="nav-item-label">Settings</span>
+              <span class="nav-menu-chevron" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+            </button>
+            <div id="settings-submenu" class="nav-submenu" role="menu" aria-label="Settings">
+              <button id="theme-switch" class="nav-subitem" type="button" role="switch" aria-checked="false" aria-label="Toggle dark mode" title="Toggle dark mode">
+                <span class="nav-item-icon"><i data-lucide="moon"></i></span>
+                <span class="theme-switch-track" aria-hidden="true"><span></span></span>
+                <span class="nav-item-icon"><i data-lucide="sun"></i></span>
+              </button>
+            </div>
+          </div>
         </nav>
       </aside>
 
@@ -148,10 +161,34 @@
         var root = document.documentElement;
         var liveUpdatesStorageKey = 'opensandbox-live-updates';
         var sandboxFilterStorageKey = 'opensandbox-state-filter';
+        var themeStorageKey = 'opensandbox-theme';
+        var themeSwitch = document.getElementById('theme-switch');
+        var settingsMenuToggle = document.getElementById('settings-menu-toggle');
+        var settingsMenu = settingsMenuToggle.closest('.nav-menu');
         var confirmationModal = document.getElementById('confirmation-modal');
         var confirmationTitle = document.getElementById('confirmation-modal-title');
         var confirmationMessage = document.getElementById('confirmation-modal-message');
         var confirmationSubmit = document.getElementById('confirmation-modal-submit');
+
+        function applyTheme(theme, persist) {
+          var selectedTheme = theme === 'dim' ? 'dim' : 'corporate';
+          root.setAttribute('data-theme', selectedTheme);
+          if (persist) { localStorage.setItem(themeStorageKey, selectedTheme); }
+
+          themeSwitch.setAttribute('aria-checked', selectedTheme === 'dim' ? 'true' : 'false');
+        }
+
+        themeSwitch.addEventListener('click', function () {
+          applyTheme(root.getAttribute('data-theme') === 'dim' ? 'corporate' : 'dim', true);
+        });
+
+        var colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
+        colorScheme.addEventListener('change', function (event) {
+          if (!localStorage.getItem(themeStorageKey)) {
+            applyTheme(event.matches ? 'dim' : 'corporate', false);
+          }
+        });
+        applyTheme(root.getAttribute('data-theme'), false);
 
         function dismissConfirmationModal(returnValue) {
           if (!confirmationModal.open || confirmationModal.classList.contains('is-closing')) { return; }
@@ -313,6 +350,25 @@
             toggle.setAttribute('aria-label', sidebarCollapsed() ? 'Expand sidebar' : 'Collapse sidebar');
           }
         }
+
+        function setSettingsMenuState(open) {
+          settingsMenuToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+
+        settingsMenu.addEventListener('mouseenter', function () { setSettingsMenuState(true); });
+        settingsMenu.addEventListener('mouseleave', function () { setSettingsMenuState(false); });
+        settingsMenu.addEventListener('focusin', function () { setSettingsMenuState(true); });
+        settingsMenu.addEventListener('focusout', function () {
+          requestAnimationFrame(function () {
+            setSettingsMenuState(settingsMenu.contains(document.activeElement));
+          });
+        });
+        settingsMenu.addEventListener('keydown', function (event) {
+          if (event.key !== 'Escape') { return; }
+          settingsMenuToggle.focus();
+          settingsMenuToggle.blur();
+          setSettingsMenuState(false);
+        });
 
         function setSidebar(state) {
           root.setAttribute('data-sidebar', state);
