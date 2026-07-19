@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -8,7 +9,41 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/bahe-msft/osb-dashboard/internal/opensandbox"
 )
+
+type fakeSandboxService struct {
+	sandboxes []opensandbox.Sandbox
+}
+
+func (service *fakeSandboxService) ListSandboxes(context.Context) ([]opensandbox.Sandbox, error) {
+	return append([]opensandbox.Sandbox(nil), service.sandboxes...), nil
+}
+
+func (service *fakeSandboxService) CreateSandbox(_ context.Context, request opensandbox.CreateSandboxRequest) (opensandbox.Sandbox, error) {
+	sandbox := opensandbox.Sandbox{
+		ID:        "sandbox-created",
+		State:     "Pending",
+		CreatedAt: time.Date(2026, time.July, 19, 12, 0, 0, 0, time.UTC),
+		Image:     request.Image,
+		Metadata:  request.Metadata,
+	}
+	service.sandboxes = append(service.sandboxes, sandbox)
+	return sandbox, nil
+}
+
+func (service *fakeSandboxService) DeleteSandbox(_ context.Context, sandbox opensandbox.Sandbox) error {
+	for index := range service.sandboxes {
+		if service.sandboxes[index].ID != sandbox.ID {
+			continue
+		}
+		service.sandboxes = append(service.sandboxes[:index], service.sandboxes[index+1:]...)
+		break
+	}
+	return nil
+}
 
 func TestParseCommandConfig(t *testing.T) {
 	kubeconfigPath := filepath.Join(t.TempDir(), "config")
@@ -72,10 +107,16 @@ func TestNewOverviewDataGroupsSandboxesByState(t *testing.T) {
 	}
 
 	wantStates := []string{"running", "paused", "failed"}
+	if len(data.StateCounts) != len(wantStates) {
+		t.Fatalf("len(StateCounts) = %d, want %d", len(data.StateCounts), len(wantStates))
+	}
 	if len(data.Groups) != len(wantStates) {
 		t.Fatalf("len(Groups) = %d, want %d", len(data.Groups), len(wantStates))
 	}
 	for index, wantState := range wantStates {
+		if data.StateCounts[index].State != wantState || data.StateCounts[index].Count != 1 {
+			t.Errorf("StateCounts[%d] = %#v, want state %q with count 1", index, data.StateCounts[index], wantState)
+		}
 		group := data.Groups[index]
 		if group.State != wantState {
 			t.Errorf("Groups[%d].State = %q, want %q", index, group.State, wantState)
@@ -98,16 +139,26 @@ func TestNewOverviewDataUsesEmptyStateWhenThereAreNoSandboxes(t *testing.T) {
 	if len(data.Groups) != 0 {
 		t.Errorf("len(Groups) = %d, want 0", len(data.Groups))
 	}
+	if len(data.StateCounts) != 0 {
+		t.Errorf("len(StateCounts) = %d, want 0", len(data.StateCounts))
+	}
 }
 
 func TestRoutes(t *testing.T) {
-	app, err := newApplication("/tmp/test-kubeconfig")
+	service := &fakeSandboxService{}
+	app, err := newApplication(
+		"/tmp/test-kubeconfig",
+		service,
+		service,
+		"python:3.12-slim",
+	)
 	if err != nil {
 		t.Fatalf("newApplication() error = %v", err)
 	}
 
 	tests := []struct {
 		name           string
+		method         string
 		path           string
 		contentType    string
 		contains       string
@@ -115,25 +166,43 @@ func TestRoutes(t *testing.T) {
 	}{
 		{
 			name:        "dashboard page",
+			method:      http.MethodGet,
 			path:        "/",
 			contentType: "text/html; charset=utf-8",
 			contains:    "hx-get=\"/dashboard/overview\"",
 		},
 		{
 			name:           "overview fragment",
+			method:         http.MethodGet,
 			path:           "/dashboard/overview",
 			contentType:    "text/html; charset=utf-8",
 			contains:       "Deploy a new sandbox",
 			doesNotContain: "OpenSandbox API not configured",
 		},
 		{
+			name:        "create sandbox",
+			method:      http.MethodPost,
+			path:        "/dashboard/sandboxes",
+			contentType: "text/html; charset=utf-8",
+			contains:    "sandbox-created",
+		},
+		{
+			name:        "delete sandbox",
+			method:      http.MethodDelete,
+			path:        "/dashboard/sandboxes/sandbox-created",
+			contentType: "text/html; charset=utf-8",
+			contains:    "Deploy a new sandbox",
+		},
+		{
 			name:        "favicon asset",
+			method:      http.MethodGet,
 			path:        "/assets/favicon.svg",
 			contentType: "image/svg+xml",
 			contains:    "<svg",
 		},
 		{
 			name:        "health check",
+			method:      http.MethodGet,
 			path:        "/healthz",
 			contentType: "text/plain; charset=utf-8",
 			contains:    "ok\n",
@@ -142,7 +211,7 @@ func TestRoutes(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, test.path, nil)
+			request := httptest.NewRequest(test.method, test.path, nil)
 			response := httptest.NewRecorder()
 
 			app.routes().ServeHTTP(response, request)

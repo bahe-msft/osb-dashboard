@@ -1,13 +1,26 @@
-<div class="filter-tabs" aria-label="Sandbox status">
-  <span class="filter-pill" data-active="true">All <span class="count">&nbsp;{{.Total}}</span></span>
+<span id="sandbox-nav-count" class="nav-item-count" hx-swap-oob="true">{{.Total}}</span>
+
+<div class="filter-tabs" aria-label="Filter sandboxes by state">
+  <button class="filter-pill" type="button" data-state-filter="all" data-active="true" aria-pressed="true">
+    All <span class="count">&nbsp;{{.Total}}</span>
+  </button>
   {{range .StateCounts}}
-    <span class="filter-pill">{{.State}} <span class="count">&nbsp;{{.Count}}</span></span>
+    <button class="filter-pill" type="button" data-state-filter="{{.State}}" aria-pressed="false">
+      {{.State}} <span class="count">&nbsp;{{.Count}}</span>
+    </button>
   {{end}}
 </div>
 
+{{if .Error}}
+  <div class="dashboard-error" role="alert">
+    <i data-lucide="circle-alert" aria-hidden="true"></i>
+    <span>{{.Error}}</span>
+  </div>
+{{end}}
+
 <div class="state-groups">
   {{range .Groups}}
-    <section class="sandbox-group" aria-labelledby="sandbox-group-{{.State}}-title">
+    <section class="sandbox-group" data-sandbox-state="{{.State}}" aria-labelledby="sandbox-group-{{.State}}-title">
       <input class="group-toggle" id="sandbox-group-{{.State}}-toggle" type="checkbox" checked>
       <label for="sandbox-group-{{.State}}-toggle">
         <span class="group-header">
@@ -26,14 +39,54 @@
             <div class="sandbox-headline">
               <span class="sandbox-name">{{.Name}}</span>
             </div>
-            <span class="sandbox-updated">{{.Detail}}</span>
-            {{if .Metadata}}<span class="chip">{{.Metadata}}</span>{{end}}
+            <span class="sandbox-updated">
+              Created <time datetime="{{.CreatedAtISO}}" data-local-time>{{.CreatedAtFallback}}</time>
+              <span class="metadata-separator" aria-hidden="true">·</span>
+              <span class="sandbox-runtime" title="{{.Namespace}} / {{.PodName}}">{{.Namespace}} / {{.PodName}}</span>
+            </span>
+            <span class="sandbox-image" title="{{.Image}}">{{.Image}}</span>
+            <button
+              class="sandbox-delete-button"
+              type="button"
+              aria-label="Delete sandbox {{.Name}}"
+              title="Delete sandbox"
+              hx-delete="/dashboard/sandboxes/{{urlquery .ID}}"
+              hx-target="#overview"
+              hx-swap="innerHTML"
+              hx-indicator="this"
+              hx-disabled-elt="this"
+              hx-confirm="Deleting sandbox {{.ID}} cannot be undone."
+              data-confirm-title="Delete sandbox?"
+              data-confirm-label="Delete"
+              data-confirm-variant="danger"
+            >
+              <i data-lucide="circle-x" aria-hidden="true"></i>
+            </button>
           </article>
         {{end}}
       </div>
     </section>
+  {{end}}
+
+  {{if .Groups}}
+    <div class="filtered-empty-state" data-filter-empty hidden>
+      <span class="empty-state-icon" aria-hidden="true"><i data-lucide="list-filter"></i></span>
+      <h2>No sandboxes in this state</h2>
+      <p>Choose another state or deploy a new sandbox.</p>
+    </div>
   {{else}}
-    <div class="empty-state" role="button" tabindex="0" aria-labelledby="empty-state-title" title="Deploy a new sandbox">
+    <div
+      class="empty-state sandbox-create-control"
+      role="button"
+      tabindex="0"
+      aria-labelledby="empty-state-title"
+      title="Deploy a new sandbox"
+      hx-post="/dashboard/sandboxes"
+      hx-target="#overview"
+      hx-swap="innerHTML"
+      hx-indicator="this"
+      hx-disabled-elt=".sandbox-create-control"
+    >
       <span class="empty-state-icon" aria-hidden="true"><i data-lucide="box"></i></span>
       <h2 id="empty-state-title">Deploy a new sandbox</h2>
       <p>Start an isolated workload in this cluster.</p>

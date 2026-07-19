@@ -9,6 +9,7 @@
         var sidebar = localStorage.getItem('opensandbox-sidebar');
         if (sidebar) { document.documentElement.setAttribute('data-sidebar', sidebar); }
         window.osbLiveUpdatesEnabled = localStorage.getItem('opensandbox-live-updates') !== 'paused';
+        window.osbSandboxFilter = localStorage.getItem('opensandbox-state-filter') || 'all';
       })();
     </script>
     <title>OpenSandbox Dashboard</title>
@@ -42,7 +43,7 @@
           <a class="nav-item" href="/" aria-current="page">
             <span class="nav-item-icon"><i data-lucide="boxes"></i></span>
             <span class="nav-item-label">Sandboxes</span>
-            <span class="nav-item-count">0</span>
+            <span id="sandbox-nav-count" class="nav-item-count">0</span>
           </a>
           <span class="nav-item" aria-disabled="true">
             <span class="nav-item-icon"><i data-lucide="layers-3"></i></span>
@@ -67,11 +68,19 @@
               <span class="topbar-breadcrumb-current">Sandboxes</span>
             </div>
             <div class="toolbar">
-              <button class="icon-button" type="button" aria-label="Filter sandboxes" title="Filter sandboxes" disabled>
-                <i data-lucide="sliders-horizontal"></i>
-              </button>
-              <button class="icon-button" type="button" aria-label="Display options" title="Display options" disabled>
-                <i data-lucide="layout-grid"></i>
+              <button
+                id="deploy-sandbox-button"
+                class="icon-button sandbox-create-control"
+                type="button"
+                aria-label="Deploy a new sandbox"
+                title="Deploy a new sandbox"
+                hx-post="/dashboard/sandboxes"
+                hx-target="#overview"
+                hx-swap="innerHTML"
+                hx-indicator="this"
+                hx-disabled-elt=".sandbox-create-control"
+              >
+                <i data-lucide="plus"></i>
               </button>
               <button id="live-updates-toggle" class="icon-button" data-live-state="enabled" type="button" aria-label="Live updates on" title="Live updates on">
                 <i data-lucide="refresh-cw"></i>
@@ -113,12 +122,161 @@
       </div>
     </div>
 
+    <dialog id="confirmation-modal" class="app-modal" aria-labelledby="confirmation-modal-title" aria-describedby="confirmation-modal-message">
+      <form class="app-modal-surface" method="dialog">
+        <header class="app-modal-header">
+          <span class="app-modal-icon" data-variant="danger" aria-hidden="true"><i data-lucide="circle-alert"></i></span>
+          <div>
+            <h2 id="confirmation-modal-title">Confirm action</h2>
+            <p id="confirmation-modal-message"></p>
+          </div>
+          <button class="app-modal-close" type="button" value="cancel" data-modal-close aria-label="Close confirmation">
+            <i data-lucide="x"></i>
+          </button>
+        </header>
+        <footer class="app-modal-footer">
+          <button class="app-modal-button" data-variant="secondary" type="button" value="cancel" data-modal-close>Cancel</button>
+          <button id="confirmation-modal-submit" class="app-modal-button" data-variant="danger" type="button" value="confirm" data-modal-close>Confirm</button>
+        </footer>
+      </form>
+    </dialog>
+
     <script>
       document.addEventListener('DOMContentLoaded', function () {
         if (window.lucide) { lucide.createIcons(); }
 
         var root = document.documentElement;
         var liveUpdatesStorageKey = 'opensandbox-live-updates';
+        var sandboxFilterStorageKey = 'opensandbox-state-filter';
+        var confirmationModal = document.getElementById('confirmation-modal');
+        var confirmationTitle = document.getElementById('confirmation-modal-title');
+        var confirmationMessage = document.getElementById('confirmation-modal-message');
+        var confirmationSubmit = document.getElementById('confirmation-modal-submit');
+
+        function dismissConfirmationModal(returnValue) {
+          if (!confirmationModal.open || confirmationModal.classList.contains('is-closing')) { return; }
+          confirmationModal.returnValue = returnValue || 'cancel';
+          confirmationModal.classList.add('is-closing');
+
+          var closeTimer;
+          function finishClose() {
+            confirmationModal.removeEventListener('animationend', handleAnimationEnd);
+            clearTimeout(closeTimer);
+            confirmationModal.classList.remove('is-closing');
+            if (confirmationModal.open) { confirmationModal.close(confirmationModal.returnValue); }
+          }
+          function handleAnimationEnd(event) {
+            if (event.target === confirmationModal && event.animationName === 'modal-exit') { finishClose(); }
+          }
+
+          confirmationModal.addEventListener('animationend', handleAnimationEnd);
+          closeTimer = setTimeout(finishClose, 180);
+        }
+
+        window.osbModal = {
+          confirm: function (options) {
+            confirmationTitle.textContent = options.title || 'Confirm action';
+            confirmationMessage.textContent = options.message || 'Are you sure?';
+            confirmationSubmit.textContent = options.confirmLabel || 'Confirm';
+            confirmationSubmit.setAttribute('data-variant', options.variant || 'primary');
+            confirmationModal.classList.remove('is-closing');
+            confirmationModal.returnValue = '';
+            confirmationModal.showModal();
+            requestAnimationFrame(function () {
+              confirmationModal.querySelector('.app-modal-footer [value="cancel"]').focus();
+            });
+
+            return new Promise(function (resolve) {
+              confirmationModal.addEventListener('close', function () {
+                resolve(confirmationModal.returnValue === 'confirm');
+              }, { once: true });
+            });
+          },
+          dismiss: dismissConfirmationModal
+        };
+
+        confirmationModal.addEventListener('cancel', function (event) {
+          event.preventDefault();
+          dismissConfirmationModal('cancel');
+        });
+
+        confirmationModal.addEventListener('click', function (event) {
+          var closeControl = event.target.closest('[data-modal-close]');
+          if (closeControl) {
+            dismissConfirmationModal(closeControl.value);
+            return;
+          }
+          if (event.target === confirmationModal) { dismissConfirmationModal('cancel'); }
+        });
+
+        document.body.addEventListener('htmx:confirm', function (event) {
+          if (!event.detail.question) { return; }
+          event.preventDefault();
+          var action = event.detail.elt;
+          window.osbModal.confirm({
+            title: action.dataset.confirmTitle,
+            message: event.detail.question,
+            confirmLabel: action.dataset.confirmLabel,
+            variant: action.dataset.confirmVariant
+          }).then(function (confirmed) {
+            if (confirmed) { event.detail.issueRequest(true); }
+          });
+        });
+
+        window.localizeSandboxTimes = function () {
+          var formatter = new Intl.DateTimeFormat(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit',
+            timeZoneName: 'short'
+          });
+          document.querySelectorAll('time[data-local-time]').forEach(function (element) {
+            var value = new Date(element.getAttribute('datetime'));
+            if (Number.isNaN(value.getTime())) { return; }
+            element.textContent = formatter.format(value);
+            element.title = value.toISOString();
+          });
+        };
+
+        window.applySandboxFilter = function () {
+          var pills = Array.from(document.querySelectorAll('[data-state-filter]'));
+          if (!pills.length) { return; }
+
+          var selected = window.osbSandboxFilter || 'all';
+          if (!pills.some(function (pill) { return pill.dataset.stateFilter === selected; })) {
+            selected = 'all';
+            window.osbSandboxFilter = selected;
+            localStorage.setItem(sandboxFilterStorageKey, selected);
+          }
+
+          pills.forEach(function (pill) {
+            var active = pill.dataset.stateFilter === selected;
+            pill.setAttribute('data-active', active ? 'true' : 'false');
+            pill.setAttribute('aria-pressed', active ? 'true' : 'false');
+          });
+
+          var groups = Array.from(document.querySelectorAll('[data-sandbox-state]'));
+          var visibleGroups = 0;
+          groups.forEach(function (group) {
+            var visible = selected === 'all' || group.dataset.sandboxState === selected;
+            group.hidden = !visible;
+            if (visible) { visibleGroups += 1; }
+          });
+
+          var filteredEmpty = document.querySelector('[data-filter-empty]');
+          if (filteredEmpty) { filteredEmpty.hidden = visibleGroups !== 0; }
+        };
+
+        document.body.addEventListener('click', function (event) {
+          var pill = event.target.closest('[data-state-filter]');
+          if (!pill) { return; }
+          window.osbSandboxFilter = pill.dataset.stateFilter;
+          localStorage.setItem(sandboxFilterStorageKey, window.osbSandboxFilter);
+          window.applySandboxFilter();
+        });
 
         function liveUpdatesEnabled() {
           return window.osbLiveUpdatesEnabled !== false;
@@ -175,11 +333,22 @@
             if (sidebarCollapsed()) { setSidebar('expanded'); }
           });
         }
+
+        document.body.addEventListener('keydown', function (event) {
+          var action = event.target.closest('[role="button"][hx-post]');
+          if (!action || (event.key !== 'Enter' && event.key !== ' ')) { return; }
+          event.preventDefault();
+          action.click();
+        });
         updateSidebarLabel();
+        window.applySandboxFilter();
+        window.localizeSandboxTimes();
       });
 
       document.body.addEventListener('htmx:afterSwap', function () {
         if (window.lucide) { lucide.createIcons(); }
+        if (window.applySandboxFilter) { window.applySandboxFilter(); }
+        if (window.localizeSandboxTimes) { window.localizeSandboxTimes(); }
       });
     </script>
   </body>
