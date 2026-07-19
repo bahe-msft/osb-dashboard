@@ -33,6 +33,12 @@ func TestRoutes(t *testing.T) {
 			contains:    "OpenSandbox API not configured",
 		},
 		{
+			name:        "favicon asset",
+			path:        "/assets/favicon.svg",
+			contentType: "image/svg+xml",
+			contains:    "<svg",
+		},
+		{
 			name:        "health check",
 			path:        "/healthz",
 			contentType: "text/plain; charset=utf-8",

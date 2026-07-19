@@ -1,80 +1,39 @@
-<div class="api-notice" role="status">
-  <span aria-hidden="true"></span>
-  <strong>OpenSandbox API not configured.</strong>
-  Sandbox data will appear after the backend connection is added.
+<div class="filter-tabs" aria-label="Sandbox status">
+  <span class="filter-pill" data-active="true">All <span class="count">&nbsp;—</span></span>
+  <span class="filter-pill">running <span class="count">&nbsp;—</span></span>
+  <span class="filter-pill">paused <span class="count">&nbsp;—</span></span>
+  <span class="filter-pill">failed <span class="count">&nbsp;—</span></span>
 </div>
 
-<section class="summary-grid" aria-label="Sandbox summary">
-  <div class="summary-item">
-    <span class="summary-label"><i></i>Total sandboxes</span>
-    <strong class="summary-value">—</strong>
-    <span class="summary-detail">Across all states</span>
+<div class="connection-notice" role="status">
+  <span class="status-ring" data-status="pending" aria-hidden="true"></span>
+  <div class="connection-copy">
+    <strong>OpenSandbox API not configured</strong>
+    <span>Sandbox data will appear after a backend connection is added.</span>
   </div>
-  <div class="summary-item">
-    <span class="summary-label"><i class="running"></i>Running</span>
-    <strong class="summary-value">—</strong>
-    <span class="summary-detail">Ready for work</span>
-  </div>
-  <div class="summary-item">
-    <span class="summary-label"><i class="paused"></i>Paused</span>
-    <strong class="summary-value">—</strong>
-    <span class="summary-detail">State retained</span>
-  </div>
-  <div class="summary-item">
-    <span class="summary-label"><i class="failed"></i>Needs attention</span>
-    <strong class="summary-value">—</strong>
-    <span class="summary-detail">Failed sandboxes</span>
-  </div>
-</section>
+  <span class="chip">local</span>
+</div>
 
-<section class="activity-panel" aria-labelledby="recent-sandboxes-title">
-  <header class="panel-header">
-    <div class="panel-heading">
-      <h2 id="recent-sandboxes-title">Sandboxes</h2>
-      <span class="panel-count">0</span>
-    </div>
-    <div class="panel-actions">
-      <button class="btn" data-size="sm" data-variant="ghost" type="button" disabled>
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
-        Filter
-      </button>
-      <button class="btn" data-size="icon-sm" data-variant="ghost" type="button" disabled aria-label="Display options">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16v14H4zM9 5v14"></path></svg>
-      </button>
-    </div>
-  </header>
+<section class="sandbox-group" aria-labelledby="sandbox-group-title">
+  <input class="group-toggle" id="sandbox-group-toggle" type="checkbox" checked>
+  <label for="sandbox-group-toggle">
+    <span class="group-header">
+      <span class="group-title" id="sandbox-group-title">
+        <span class="chevron" aria-hidden="true"><i data-lucide="chevron-down"></i></span>
+        <strong>Sandboxes</strong>
+        <span class="count">0</span>
+      </span>
+    </span>
+  </label>
 
-  <div class="table-container">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Sandbox</th>
-          <th>State</th>
-          <th>Source</th>
-          <th>Created</th>
-          <th>Expires</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td colspan="5">
-            <div class="sandbox-empty">
-              <div>
-                <span class="empty-icon">
-                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m21 8-9 5-9-5"></path><path d="m3 12 9 5 9-5"></path><path d="m3 4 9 5 9-5-9-3-9 3Z"></path></svg>
-                </span>
-                <h3>No sandboxes yet</h3>
-                <p>Connect the OpenSandbox API to see your resources.</p>
-              </div>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="sandbox-list">
+    <article class="sandbox-row empty-row">
+      <span class="status-ring" aria-hidden="true"></span>
+      <div class="sandbox-headline">
+        <span class="sandbox-name">No sandboxes yet</span>
+      </div>
+      <span class="sandbox-updated">Connect the OpenSandbox API to see your resources.</span>
+      <span class="chip">api=not-configured</span>
+    </article>
   </div>
-
-  <footer class="panel-footer">
-    <span>Dashboard uptime {{.Uptime}}</span>
-    <span>Updated {{.CheckedAt}}</span>
-  </footer>
 </section>
