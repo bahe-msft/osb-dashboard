@@ -3,7 +3,7 @@
   id="dashboard-content"
   data-page="detail"
   hx-get="/dashboard/sandboxes/{{urlquery .ID}}/fragment"
-  hx-trigger="every 5s [document.visibilityState === 'visible' && window.osbLiveUpdatesEnabled !== false && window.osbTerminalActive !== true && window.osbSandboxInfoPanel !== 'stats']"
+  hx-trigger="dashboardRefresh"
   hx-swap="outerHTML"
   aria-live="polite"
 >
@@ -17,6 +17,7 @@
       <i data-lucide="panel-right-close"></i>
     </button>
   </span>
+  <span id="sandbox-nav-count" class="nav-item-count" hx-swap-oob="true">{{.Total}}</span>
 
   {{if .Error}}
     <div class="dashboard-error" role="alert">
@@ -160,7 +161,7 @@
             class="sandbox-live-stats"
             data-stats-loaded="false"
             hx-get="/dashboard/sandboxes/{{urlquery .ID}}/stats"
-            hx-trigger="statsRefresh, every 5s [window.osbSandboxInfoPanel === 'stats' && window.osbLiveUpdatesEnabled !== false && document.visibilityState === 'visible']"
+            hx-trigger="statsRefresh"
             hx-swap="outerHTML"
             hx-indicator="this"
             aria-live="polite"

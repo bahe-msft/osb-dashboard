@@ -3,7 +3,7 @@
   class="sandbox-live-stats"
   data-stats-loaded="true"
   hx-get="/dashboard/sandboxes/{{urlquery .SandboxID}}/stats"
-  hx-trigger="statsRefresh, every 5s [window.osbSandboxInfoPanel === 'stats' && window.osbLiveUpdatesEnabled !== false && document.visibilityState === 'visible']"
+  hx-trigger="statsRefresh"
   hx-swap="outerHTML"
   hx-indicator="this"
   aria-live="polite"

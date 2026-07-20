@@ -386,6 +386,21 @@ func TestTerminalOperations(t *testing.T) {
 	}
 }
 
+func TestReadCommandStreamHandlesAdjacentNDJSONEvents(t *testing.T) {
+	stream := strings.Join([]string{
+		`{"type":"stdout","text":"one"}`,
+		`{"type":"stdout","text":"two"}`,
+		`{"type":"result","exit_code":0}`,
+	}, "\n")
+	result, err := readCommandStream(strings.NewReader(stream))
+	if err != nil {
+		t.Fatalf("readCommandStream() error = %v", err)
+	}
+	if result.Stdout != "one\ntwo\n" || result.ExitCode != 0 {
+		t.Errorf("readCommandStream() = %#v", result)
+	}
+}
+
 func TestCreateSandboxOmitsZeroTimeout(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

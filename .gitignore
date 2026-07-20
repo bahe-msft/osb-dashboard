@@ -16,3 +16,4 @@ result-*
 # Downloaded frontend dependencies (keep licenses tracked)
 web/assets/vendor/ghostty-web/*
 !web/assets/vendor/ghostty-web/LICENSE
+web/assets/vendor/ui/*
