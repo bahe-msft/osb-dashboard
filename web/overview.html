@@ -3,7 +3,7 @@
   id="dashboard-content"
   data-page="list"
   hx-get="/dashboard/overview"
-  hx-trigger="every 5s [document.visibilityState === 'visible' && window.osbLiveUpdatesEnabled !== false]"
+  hx-trigger="dashboardRefresh"
   hx-swap="outerHTML"
   aria-live="polite"
 >
@@ -53,6 +53,7 @@
         {{range .Sandboxes}}
           <article
             class="sandbox-row"
+            data-sandbox-id="{{.ID}}"
             role="link"
             tabindex="0"
             aria-label="Open sandbox {{.Name}}"
@@ -60,7 +61,7 @@
             hx-target="#dashboard-content"
             hx-swap="outerHTML"
             hx-push-url="/dashboard/sandboxes/{{urlquery .ID}}"
-            hx-trigger="click[!event.target.closest('.sandbox-delete-button')]"
+            hx-trigger="click"
           >
             <span class="status-ring" data-status="{{.State}}" aria-hidden="true"></span>
             <div class="sandbox-headline">

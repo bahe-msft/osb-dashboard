@@ -193,7 +193,14 @@ func readCommandStream(reader io.Reader) (CommandResult, error) {
 			continue
 		}
 		if strings.HasPrefix(line, "{") {
-			dataLines = append(dataLines, line)
+			if err := dispatch(); err != nil {
+				return CommandResult{}, err
+			}
+			if err := appendCommandEvent(&result, "", line); err != nil {
+				return CommandResult{}, err
+			}
+			eventCount++
+			event = ""
 			continue
 		}
 		field, value, found := strings.Cut(line, ":")

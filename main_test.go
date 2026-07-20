@@ -115,6 +115,57 @@ func TestParseCommandConfigRejectsInvalidArguments(t *testing.T) {
 	}
 }
 
+func TestLoopbackAddressValidation(t *testing.T) {
+	for _, address := range []string{"127.0.0.1:8080", "[::1]:8080", "localhost:8080"} {
+		if !isLoopbackAddress(address) {
+			t.Errorf("isLoopbackAddress(%q) = false", address)
+		}
+	}
+	for _, address := range []string{":8080", "0.0.0.0:8080", "example.com:8080", "invalid"} {
+		if isLoopbackAddress(address) {
+			t.Errorf("isLoopbackAddress(%q) = true", address)
+		}
+	}
+}
+
+func TestTokenAuthenticationAndCSRFProtection(t *testing.T) {
+	handler := securityHeaders(tokenAuthentication("secret", csrfProtection(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))))
+
+	tests := []struct {
+		name       string
+		method     string
+		auth       string
+		origin     string
+		csrfHeader string
+		want       int
+	}{
+		{name: "missing authentication", method: http.MethodGet, want: http.StatusUnauthorized},
+		{name: "authenticated read", method: http.MethodGet, auth: "Bearer secret", want: http.StatusNoContent},
+		{name: "mutation without origin", method: http.MethodPost, auth: "Bearer secret", want: http.StatusForbidden},
+		{name: "same-origin browser mutation", method: http.MethodDelete, auth: "Bearer secret", origin: "http://dashboard.test", want: http.StatusNoContent},
+		{name: "cross-origin browser mutation", method: http.MethodPost, auth: "Bearer secret", origin: "https://attacker.test", want: http.StatusForbidden},
+		{name: "explicit API CSRF header", method: http.MethodPost, auth: "Bearer secret", csrfHeader: "1", want: http.StatusNoContent},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(test.method, "http://dashboard.test/dashboard/sandboxes", nil)
+			request.Header.Set("Authorization", test.auth)
+			request.Header.Set("Origin", test.origin)
+			request.Header.Set("X-OSB-CSRF", test.csrfHeader)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != test.want {
+				t.Errorf("status = %d, want %d", response.Code, test.want)
+			}
+			if got := response.Header().Get("Content-Security-Policy"); !strings.Contains(got, "default-src 'self'") {
+				t.Errorf("Content-Security-Policy = %q", got)
+			}
+		})
+	}
+}
+
 func TestCreateSandboxRequest(t *testing.T) {
 	app := &application{sandboxImage: "default:image"}
 	form := url.Values{

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"embed"
 	"encoding/hex"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"html/template"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -28,58 +30,84 @@ import (
 )
 
 const (
-	defaultHTTPAddr = ":8080"
+	defaultHTTPAddr = "127.0.0.1:8080"
 	statsSampleUS   = 250_000
 )
 
 const sandboxStatsCommand = `set -eu
-if [ -r /sys/fs/cgroup/cpu.stat ]; then
+read_cpu_usage_v2() {
+  while read -r key value _; do
+    if [ "$key" = usage_usec ]; then
+      printf '%s\n' "$value"
+      return 0
+    fi
+  done < /sys/fs/cgroup/cpu.stat
+  return 1
+}
+if [ -r /sys/fs/cgroup/cpu.stat ] && [ -r /sys/fs/cgroup/cpu.max ]; then
   cpu_unit=us
-  cpu_start=$(awk '$1 == "usage_usec" { print $2 }' /sys/fs/cgroup/cpu.stat)
-  read cpu_quota cpu_period < /sys/fs/cgroup/cpu.max
-else
+  cpu_start=$(read_cpu_usage_v2)
+  read -r cpu_quota cpu_period < /sys/fs/cgroup/cpu.max
+elif [ -r /sys/fs/cgroup/cpuacct/cpuacct.usage ] && [ -r /sys/fs/cgroup/cpu/cpu.cfs_quota_us ]; then
   cpu_unit=ns
   cpu_start=$(cat /sys/fs/cgroup/cpuacct/cpuacct.usage)
   cpu_quota=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
   cpu_period=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
+else
+  printf 'unsupported CPU cgroup layout\n' >&2
+  exit 2
 fi
 sleep 0.25
 if [ "$cpu_unit" = us ]; then
-  cpu_end=$(awk '$1 == "usage_usec" { print $2 }' /sys/fs/cgroup/cpu.stat)
+  cpu_end=$(read_cpu_usage_v2)
 else
   cpu_end=$(cat /sys/fs/cgroup/cpuacct/cpuacct.usage)
 fi
-cpu_count=$(getconf _NPROCESSORS_ONLN 2>/dev/null || grep -c '^processor' /proc/cpuinfo || echo 1)
-load_1=$(awk '{ print $1 }' /proc/loadavg)
-if [ -r /sys/fs/cgroup/memory.current ]; then
+cpu_count=0
+for cpu_path in /sys/devices/system/cpu/cpu[0-9]*; do
+  if [ -d "$cpu_path" ]; then cpu_count=$((cpu_count + 1)); fi
+done
+if [ "$cpu_count" -eq 0 ]; then cpu_count=1; fi
+read -r load_1 _ < /proc/loadavg
+if [ -r /sys/fs/cgroup/memory.current ] && [ -r /sys/fs/cgroup/memory.max ]; then
   memory_current=$(cat /sys/fs/cgroup/memory.current)
   memory_max=$(cat /sys/fs/cgroup/memory.max)
-else
+elif [ -r /sys/fs/cgroup/memory/memory.usage_in_bytes ] && [ -r /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
   memory_current=$(cat /sys/fs/cgroup/memory/memory.usage_in_bytes)
   memory_max=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
+else
+  printf 'unsupported memory cgroup layout\n' >&2
+  exit 2
 fi
 printf 'cpu_unit=%s\ncpu_start=%s\ncpu_end=%s\ncpu_quota=%s\ncpu_period=%s\ncpu_count=%s\nload_1=%s\nmemory_current=%s\nmemory_max=%s\n' \
   "$cpu_unit" "$cpu_start" "$cpu_end" "$cpu_quota" "$cpu_period" "$cpu_count" "$load_1" "$memory_current" "$memory_max"`
 
 //go:generate ./scripts/fetch-ghostty-web.sh
+//go:generate ./scripts/fetch-ui-assets.sh
 
 //go:embed web
 var webFiles embed.FS
 
 type application struct {
-	assets           http.Handler
-	kubeconfigPath   string
-	indexTemplate    *template.Template
-	overviewTemplate *template.Template
-	sandboxTemplate  *template.Template
-	statsTemplate    *template.Template
-	sandboxReader    opensandbox.Reader
-	sandboxWriter    opensandbox.Writer
-	sandboxTerminal  opensandbox.Terminal
-	sandboxCommands  opensandbox.CommandRunner
-	sandboxImage     string
-	context          context.Context
-	background       sync.WaitGroup
+	assets            http.Handler
+	kubeconfigPath    string
+	indexTemplate     *template.Template
+	overviewTemplate  *template.Template
+	sandboxTemplate   *template.Template
+	statsTemplate     *template.Template
+	sandboxReader     opensandbox.Reader
+	sandboxWriter     opensandbox.Writer
+	sandboxTerminal   opensandbox.Terminal
+	sandboxCommands   opensandbox.CommandRunner
+	sandboxImage      string
+	context           context.Context
+	background        sync.WaitGroup
+	statsMutex        sync.Mutex
+	statsCache        map[string]cachedSandboxStats
+	sandboxCacheMutex sync.Mutex
+	sandboxCache      []opensandbox.Sandbox
+	sandboxCacheErr   error
+	sandboxCacheUntil time.Time
 }
 
 type commandConfig struct {
@@ -87,6 +115,7 @@ type commandConfig struct {
 	openSandboxNamespace string
 	sandboxNamespace     string
 	sandboxImage         string
+	authToken            string
 }
 
 type sandboxView struct {
@@ -132,6 +161,7 @@ type detailItem struct {
 
 type sandboxDetailData struct {
 	ID                string
+	Total             int
 	State             string
 	StateLabel        string
 	CreatedAtISO      string
@@ -158,6 +188,11 @@ type sandboxStatsData struct {
 	MemoryLevel   string
 	MemoryLimited bool
 	Error         string
+}
+
+type cachedSandboxStats struct {
+	data      sandboxStatsData
+	expiresAt time.Time
 }
 
 type sandboxUsageStats struct {
@@ -189,6 +224,13 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
+	addr := os.Getenv("HTTP_ADDR")
+	if addr == "" {
+		addr = defaultHTTPAddr
+	}
+	if config.authToken == "" && !isLoopbackAddress(addr) {
+		return errors.New("--auth-token is required when HTTP_ADDR is not loopback")
+	}
 
 	client, err := opensandbox.NewFromKubeconfig(config.kubeconfigPath, opensandbox.Options{
 		Namespace:         config.openSandboxNamespace,
@@ -211,15 +253,14 @@ func run(args []string) error {
 		return err
 	}
 
-	addr := os.Getenv("HTTP_ADDR")
-	if addr == "" {
-		addr = defaultHTTPAddr
-	}
-
+	handler := csrfProtection(app.routes())
+	handler = tokenAuthentication(config.authToken, handler)
+	handler = securityHeaders(handler)
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           requestLogger(slog.Default(), app.routes()),
+		Handler:           requestLogger(slog.Default(), handler),
 		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	shutdownSignal, stop := signal.NotifyContext(
@@ -282,6 +323,12 @@ func parseCommandConfig(args []string) (commandConfig, error) {
 		"sandbox-image",
 		"python:3.12-slim",
 		"container image used by the dashboard's create action",
+	)
+	flags.StringVar(
+		&config.authToken,
+		"auth-token",
+		os.Getenv("OSB_DASHBOARD_AUTH_TOKEN"),
+		"token required for dashboard access (required for non-loopback HTTP_ADDR)",
 	)
 
 	if err := flags.Parse(args); err != nil {
@@ -367,6 +414,7 @@ func newApplication(
 		sandboxCommands:  sandboxCommands,
 		sandboxImage:     sandboxImage,
 		context:          appContext,
+		statsCache:       make(map[string]cachedSandboxStats),
 	}, nil
 }
 
@@ -416,7 +464,7 @@ func (app *application) overview(w http.ResponseWriter, r *http.Request) {
 
 func (app *application) sandboxDetail(w http.ResponseWriter, r *http.Request) {
 	sandboxID := r.PathValue("id")
-	sandboxes, listErr := app.sandboxReader.ListSandboxes(r.Context())
+	sandboxes, listErr := app.listSandboxes(r.Context(), false)
 	data := sandboxDetailData{ID: sandboxID}
 	for _, sandbox := range sandboxes {
 		if sandbox.ID == sandboxID {
@@ -424,6 +472,7 @@ func (app *application) sandboxDetail(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	data.Total = len(sandboxes)
 	if data.State == "" {
 		data.Error = fmt.Sprintf("Sandbox %q was not found", sandboxID)
 	} else if listErr != nil {
@@ -438,6 +487,10 @@ func (app *application) sandboxDetail(w http.ResponseWriter, r *http.Request) {
 
 func (app *application) sandboxStats(w http.ResponseWriter, r *http.Request) {
 	sandboxID := r.PathValue("id")
+	if data, ok := app.cachedSandboxStats(sandboxID); ok {
+		app.renderSandboxStats(w, r, data)
+		return
+	}
 	data := sandboxStatsData{SandboxID: sandboxID, CPU: "—", Memory: "—"}
 
 	statsContext, cancel := context.WithTimeout(r.Context(), 4*time.Second)
@@ -468,14 +521,37 @@ func (app *application) sandboxStats(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	cacheDuration := 4 * time.Second
 	if err != nil {
 		slog.ErrorContext(r.Context(), "load sandbox stats", slog.String("sandbox_id", sandboxID), slog.Any("error", err))
 		data.Error = "Unable to load live usage"
+		cacheDuration = time.Second
 	}
+	app.cacheSandboxStats(sandboxID, data, cacheDuration)
+	app.renderSandboxStats(w, r, data)
+}
 
+func (app *application) cachedSandboxStats(sandboxID string) (sandboxStatsData, bool) {
+	app.statsMutex.Lock()
+	defer app.statsMutex.Unlock()
+	entry, ok := app.statsCache[sandboxID]
+	if !ok || time.Now().After(entry.expiresAt) {
+		delete(app.statsCache, sandboxID)
+		return sandboxStatsData{}, false
+	}
+	return entry.data, true
+}
+
+func (app *application) cacheSandboxStats(sandboxID string, data sandboxStatsData, duration time.Duration) {
+	app.statsMutex.Lock()
+	defer app.statsMutex.Unlock()
+	app.statsCache[sandboxID] = cachedSandboxStats{data: data, expiresAt: time.Now().Add(duration)}
+}
+
+func (app *application) renderSandboxStats(w http.ResponseWriter, r *http.Request, data sandboxStatsData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := app.statsTemplate.Execute(w, data); err != nil {
-		slog.ErrorContext(r.Context(), "render sandbox stats", slog.String("sandbox_id", sandboxID), slog.Any("error", err))
+		slog.ErrorContext(r.Context(), "render sandbox stats", slog.String("sandbox_id", data.SandboxID), slog.Any("error", err))
 	}
 }
 
@@ -722,7 +798,7 @@ func (app *application) createSandbox(w http.ResponseWriter, r *http.Request) {
 			app.renderAcceptedSandbox(w, r.Context(), requestID, &createResult.sandbox)
 			return
 		case <-poll.C:
-			sandboxes, listErr := app.sandboxReader.ListSandboxes(r.Context())
+			sandboxes, listErr := app.listSandboxes(r.Context(), true)
 			if sandbox := acceptedSandbox(sandboxes, requestID); sandbox != nil {
 				app.renderSandboxList(w, sandboxes, listErr)
 				return
@@ -796,7 +872,7 @@ func (app *application) renderAcceptedSandbox(
 	requestID string,
 	created *opensandbox.Sandbox,
 ) {
-	sandboxes, listErr := app.sandboxReader.ListSandboxes(ctx)
+	sandboxes, listErr := app.listSandboxes(ctx, true)
 	if acceptedSandbox(sandboxes, requestID) == nil && created != nil {
 		sandboxes = append(sandboxes, *created)
 	}
@@ -814,7 +890,7 @@ func (app *application) renderSandboxList(w http.ResponseWriter, sandboxes []ope
 
 func (app *application) deleteSandbox(w http.ResponseWriter, r *http.Request) {
 	sandboxID := r.PathValue("id")
-	sandboxes, listErr := app.sandboxReader.ListSandboxes(r.Context())
+	sandboxes, listErr := app.listSandboxes(r.Context(), true)
 	var target *opensandbox.Sandbox
 	for index := range sandboxes {
 		if sandboxes[index].ID == sandboxID {
@@ -846,7 +922,34 @@ func (app *application) deleteSandbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	app.invalidateSandboxCache()
+	app.statsMutex.Lock()
+	delete(app.statsCache, sandboxID)
+	app.statsMutex.Unlock()
 	app.renderOverview(w, app.loadOverviewDataExcluding(r.Context(), sandboxID))
+}
+
+func (app *application) listSandboxes(ctx context.Context, fresh bool) ([]opensandbox.Sandbox, error) {
+	app.sandboxCacheMutex.Lock()
+	defer app.sandboxCacheMutex.Unlock()
+	if !fresh && time.Now().Before(app.sandboxCacheUntil) {
+		return append([]opensandbox.Sandbox(nil), app.sandboxCache...), app.sandboxCacheErr
+	}
+	sandboxes, err := app.sandboxReader.ListSandboxes(ctx)
+	app.sandboxCache = append(app.sandboxCache[:0], sandboxes...)
+	app.sandboxCacheErr = err
+	cacheDuration := 4 * time.Second
+	if err != nil {
+		cacheDuration = time.Second
+	}
+	app.sandboxCacheUntil = time.Now().Add(cacheDuration)
+	return append([]opensandbox.Sandbox(nil), sandboxes...), err
+}
+
+func (app *application) invalidateSandboxCache() {
+	app.sandboxCacheMutex.Lock()
+	app.sandboxCacheUntil = time.Time{}
+	app.sandboxCacheMutex.Unlock()
 }
 
 func (app *application) loadOverviewData(ctx context.Context) overviewData {
@@ -854,7 +957,7 @@ func (app *application) loadOverviewData(ctx context.Context) overviewData {
 }
 
 func (app *application) loadOverviewDataExcluding(ctx context.Context, excludedID string) overviewData {
-	sandboxes, err := app.sandboxReader.ListSandboxes(ctx)
+	sandboxes, err := app.listSandboxes(ctx, false)
 	data := app.overviewDataFromSandboxes(sandboxes, excludedID)
 	if err != nil {
 		slog.ErrorContext(ctx, "list sandboxes", slog.Any("error", err))
@@ -1011,6 +1114,80 @@ func sandboxStateLabel(state string) string {
 		words[index] = strings.ToUpper(word[:1]) + word[1:]
 	}
 	return strings.Join(words, " ")
+}
+
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' data: ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
+		w.Header().Set("Referrer-Policy", "same-origin")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isLoopbackAddress(address string) bool {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func tokenAuthentication(token string, next http.Handler) http.Handler {
+	if token == "" {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		candidate := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if _, password, ok := r.BasicAuth(); ok {
+			candidate = password
+		}
+		if subtle.ConstantTimeCompare([]byte(candidate), []byte(token)) != 1 {
+			w.Header().Set("WWW-Authenticate", `Basic realm="OpenSandbox Dashboard"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func csrfProtection(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		protected := r.Method == http.MethodPost || r.Method == http.MethodDelete ||
+			strings.HasSuffix(r.URL.Path, "/terminal/pty")
+		if !protected {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
+			http.Error(w, "Cross-site request rejected", http.StatusForbidden)
+			return
+		}
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			if r.Header.Get("X-OSB-CSRF") == "1" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			http.Error(w, "Origin header is required", http.StatusForbidden)
+			return
+		}
+		parsedOrigin, err := url.Parse(origin)
+		if err != nil || !strings.EqualFold(parsedOrigin.Host, r.Host) {
+			http.Error(w, "Cross-origin request rejected", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func health(w http.ResponseWriter, r *http.Request) {
