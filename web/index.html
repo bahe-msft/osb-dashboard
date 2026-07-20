@@ -72,7 +72,7 @@
               {{if .SandboxID}}
                 <a href="/" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/">Sandboxes</a>
                 <span class="topbar-breadcrumb-sep">/</span>
-                <span class="topbar-breadcrumb-current">{{.SandboxID}}</span>
+                <span class="topbar-breadcrumb-current copyable-value" title="{{.SandboxID}}">{{.SandboxID}}</span>
               {{else}}
                 <span class="topbar-breadcrumb-current">Sandboxes</span>
               {{end}}

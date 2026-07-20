@@ -10,7 +10,7 @@
   <div id="navigation-title" class="topbar-breadcrumb" hx-swap-oob="true">
     <a href="/" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/">Sandboxes</a>
     <span class="topbar-breadcrumb-sep">/</span>
-    <span class="topbar-breadcrumb-current">{{.ID}}</span>
+    <span class="topbar-breadcrumb-current copyable-value" title="{{.ID}}">{{.ID}}</span>
   </div>
   <span id="page-toolbar-action" class="toolbar-action" hx-swap-oob="true">
     <button id="details-pane-toggle" class="icon-button" type="button" aria-controls="sandbox-detail-sidebar" aria-pressed="false" aria-label="Hide details pane" title="Hide details pane">
@@ -31,12 +31,15 @@
       <div class="sandbox-detail-primary">
         <div class="sandbox-detail-summary">
           <span class="status-ring" data-status="{{.State}}" aria-hidden="true"></span>
-          <div>
+          <div class="sandbox-detail-summary-content">
             <h1>{{.StateLabel}}</h1>
             <p>
-              <span><i data-lucide="disc" aria-hidden="true"></i>{{.Image}}</span>
+              <span class="sandbox-detail-image">
+                <i data-lucide="disc" aria-hidden="true"></i>
+                <span class="sandbox-detail-image-value copyable-value" title="{{.Image}}">{{.Image}}</span>
+              </span>
               <span class="metadata-separator" aria-hidden="true">·</span>
-              <span><i data-lucide="cpu" aria-hidden="true"></i>{{.Resources}}</span>
+              <span class="sandbox-detail-resources"><i data-lucide="cpu" aria-hidden="true"></i>{{.Resources}}</span>
             </p>
           </div>
         </div>

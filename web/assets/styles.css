@@ -1117,6 +1117,10 @@ button.nav-item {
   gap: 12px;
 }
 
+.sandbox-detail-summary-content {
+  min-width: 0;
+}
+
 .sandbox-detail-summary .status-ring {
   width: 16px;
   height: 16px;
@@ -1146,8 +1150,23 @@ button.nav-item {
   min-width: 0;
   align-items: center;
   gap: 4px;
+}
+
+.sandbox-detail-image {
+  max-width: 32rem;
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+
+.sandbox-detail-image-value {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sandbox-detail-resources {
+  flex: 0 0 auto;
 }
 
 .sandbox-detail-summary p svg {
