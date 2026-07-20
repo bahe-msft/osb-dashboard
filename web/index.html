@@ -87,11 +87,7 @@
                 type="button"
                 aria-label="Deploy a new sandbox"
                 title="Deploy a new sandbox"
-                hx-post="/dashboard/sandboxes"
-                hx-target="#overview"
-                hx-swap="innerHTML"
-                hx-indicator="this"
-                hx-disabled-elt=".sandbox-create-control"
+                data-open-create-modal
               >
                 <i data-lucide="plus"></i>
               </button>
@@ -135,6 +131,91 @@
       </div>
     </div>
 
+    <dialog id="create-sandbox-modal" class="app-modal" data-size="lg" aria-labelledby="create-sandbox-modal-title">
+      <form
+        id="create-sandbox-form"
+        class="app-modal-surface"
+        method="post"
+        action="/dashboard/sandboxes"
+        autocomplete="off"
+        data-1p-ignore
+        data-lpignore="true"
+        data-form-type="other"
+        hx-post="/dashboard/sandboxes"
+        hx-target="#overview"
+        hx-swap="innerHTML"
+        hx-indicator="this"
+        hx-disabled-elt="#create-sandbox-form input, #create-sandbox-form button"
+      >
+        <header class="app-modal-header">
+          <span class="app-modal-icon" aria-hidden="true"><i data-lucide="box"></i></span>
+          <div>
+            <h2 id="create-sandbox-modal-title">Create sandbox</h2>
+          </div>
+          <button class="app-modal-close" type="button" data-create-modal-close aria-label="Close create sandbox form">
+            <i data-lucide="x"></i>
+          </button>
+        </header>
+        <div class="app-modal-body">
+          <div id="create-sandbox-error" class="app-form-error" role="alert" hidden></div>
+          <div class="app-form-field">
+            <label for="sandbox-image">Container image</label>
+            <span class="preset-input-control">
+              <input id="sandbox-image" name="image" type="text" value="{{.SandboxImage}}" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true">
+              <button id="image-presets-toggle" class="preset-menu-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="image-presets-menu" aria-label="Choose a preset image" title="Choose a preset image">
+                <i data-lucide="disc"></i>
+              </button>
+              <span id="image-presets-menu" class="preset-menu" role="menu" aria-label="Preset container images" hidden>
+                <button type="button" role="menuitem" data-preset-value="python:3.12-slim">
+                  <span>Python</span><code>python:3.12-slim</code>
+                </button>
+                <button type="button" role="menuitem" data-preset-value="node:22-slim">
+                  <span>Node.js</span><code>node:22-slim</code>
+                </button>
+                <button type="button" role="menuitem" data-preset-value="ubuntu:24.04">
+                  <span>Ubuntu</span><code>ubuntu:24.04</code>
+                </button>
+                <button type="button" role="menuitem" data-preset-value="alpine:3.20">
+                  <span>Alpine</span><code>alpine:3.20</code>
+                </button>
+              </span>
+            </span>
+          </div>
+          <div class="app-form-field">
+            <label for="resource-preset-label">Resources</label>
+            <span class="preset-input-control">
+              <input id="resource-preset-label" type="text" value="1 core / 2 GiB" readonly tabindex="-1" autocomplete="off" data-1p-ignore data-lpignore="true">
+              <input name="resourcePreset" type="hidden" value="1core-2gib">
+              <button id="resource-presets-toggle" class="preset-menu-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="resource-presets-menu" aria-label="Choose a resource preset" title="Choose a resource preset">
+                <i data-lucide="cpu"></i>
+              </button>
+              <span id="resource-presets-menu" class="preset-menu" role="menu" aria-label="Resource presets" hidden>
+                <button type="button" role="menuitem" data-preset-value="1core-2gib" data-preset-label="1 core / 2 GiB">
+                  <span>1 core</span><code>2 GiB memory</code>
+                </button>
+                <button type="button" role="menuitem" data-preset-value="2core-4gib" data-preset-label="2 cores / 4 GiB">
+                  <span>2 cores</span><code>4 GiB memory</code>
+                </button>
+                <button type="button" role="menuitem" data-preset-value="4core-8gib" data-preset-label="4 cores / 8 GiB">
+                  <span>4 cores</span><code>8 GiB memory</code>
+                </button>
+                <button type="button" role="menuitem" data-preset-value="8core-16gib" data-preset-label="8 cores / 16 GiB">
+                  <span>8 cores</span><code>16 GiB memory</code>
+                </button>
+              </span>
+            </span>
+          </div>
+        </div>
+        <footer class="app-modal-footer">
+          <button class="app-modal-button" data-variant="secondary" type="button" data-create-modal-close>Cancel</button>
+          <button class="app-modal-button create-submit-button" data-variant="primary" type="submit">
+            <span class="create-button-label">Create</span>
+            <span class="create-button-loading" aria-hidden="true"><i data-lucide="loader-circle"></i>Creating</span>
+          </button>
+        </footer>
+      </form>
+    </dialog>
+
     <dialog id="confirmation-modal" class="app-modal" aria-labelledby="confirmation-modal-title" aria-describedby="confirmation-modal-message">
       <form class="app-modal-surface" method="dialog">
         <header class="app-modal-header">
@@ -165,6 +246,12 @@
         var themeSwitch = document.getElementById('theme-switch');
         var settingsMenuToggle = document.getElementById('settings-menu-toggle');
         var settingsMenu = settingsMenuToggle.closest('.nav-menu');
+        var createSandboxModal = document.getElementById('create-sandbox-modal');
+        var createSandboxForm = document.getElementById('create-sandbox-form');
+        var createSandboxError = document.getElementById('create-sandbox-error');
+        var imageInput = createSandboxForm.elements.image;
+        var resourcePresetInput = createSandboxForm.elements.resourcePreset;
+        var resourcePresetLabel = document.getElementById('resource-preset-label');
         var confirmationModal = document.getElementById('confirmation-modal');
         var confirmationTitle = document.getElementById('confirmation-modal-title');
         var confirmationMessage = document.getElementById('confirmation-modal-message');
@@ -190,23 +277,23 @@
         });
         applyTheme(root.getAttribute('data-theme'), false);
 
-        function dismissConfirmationModal(returnValue) {
-          if (!confirmationModal.open || confirmationModal.classList.contains('is-closing')) { return; }
-          confirmationModal.returnValue = returnValue || 'cancel';
-          confirmationModal.classList.add('is-closing');
+        function dismissModal(modal, returnValue) {
+          if (!modal.open || modal.classList.contains('is-closing')) { return; }
+          modal.returnValue = returnValue || 'cancel';
+          modal.classList.add('is-closing');
 
           var closeTimer;
           function finishClose() {
-            confirmationModal.removeEventListener('animationend', handleAnimationEnd);
+            modal.removeEventListener('animationend', handleAnimationEnd);
             clearTimeout(closeTimer);
-            confirmationModal.classList.remove('is-closing');
-            if (confirmationModal.open) { confirmationModal.close(confirmationModal.returnValue); }
+            modal.classList.remove('is-closing');
+            if (modal.open) { modal.close(modal.returnValue); }
           }
           function handleAnimationEnd(event) {
-            if (event.target === confirmationModal && event.animationName === 'modal-exit') { finishClose(); }
+            if (event.target === modal && event.animationName === 'modal-exit') { finishClose(); }
           }
 
-          confirmationModal.addEventListener('animationend', handleAnimationEnd);
+          modal.addEventListener('animationend', handleAnimationEnd);
           closeTimer = setTimeout(finishClose, 180);
         }
 
@@ -229,21 +316,147 @@
               }, { once: true });
             });
           },
-          dismiss: dismissConfirmationModal
+          dismiss: function (returnValue) { dismissModal(confirmationModal, returnValue); }
         };
 
         confirmationModal.addEventListener('cancel', function (event) {
           event.preventDefault();
-          dismissConfirmationModal('cancel');
+          dismissModal(confirmationModal, 'cancel');
         });
 
         confirmationModal.addEventListener('click', function (event) {
           var closeControl = event.target.closest('[data-modal-close]');
           if (closeControl) {
-            dismissConfirmationModal(closeControl.value);
+            dismissModal(confirmationModal, closeControl.value);
             return;
           }
-          if (event.target === confirmationModal) { dismissConfirmationModal('cancel'); }
+          if (event.target === confirmationModal) { dismissModal(confirmationModal, 'cancel'); }
+        });
+
+        var presetMenus = [];
+
+        function setupPresetMenu(toggleID, menuID, getValue, selectValue, focusTarget) {
+          var toggle = document.getElementById(toggleID);
+          var menu = document.getElementById(menuID);
+          var control = toggle.closest('.preset-input-control');
+
+          function setOpen(open, focusMenu) {
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            menu.hidden = !open;
+            menu.querySelectorAll('[data-preset-value]').forEach(function (option) {
+              option.setAttribute('data-selected', option.dataset.presetValue === getValue() ? 'true' : 'false');
+            });
+            if (open && focusMenu) {
+              requestAnimationFrame(function () {
+                var selected = menu.querySelector('[data-selected="true"]');
+                (selected || menu.querySelector('[data-preset-value]')).focus();
+              });
+            }
+          }
+
+          var controller = { close: function () { setOpen(false, false); } };
+          presetMenus.push(controller);
+
+          toggle.addEventListener('click', function () {
+            var open = toggle.getAttribute('aria-expanded') !== 'true';
+            presetMenus.forEach(function (presetMenu) { presetMenu.close(); });
+            setOpen(open, true);
+          });
+
+          menu.addEventListener('click', function (event) {
+            var option = event.target.closest('[data-preset-value]');
+            if (!option) { return; }
+            selectValue(option.dataset.presetValue, option.dataset.presetLabel || option.dataset.presetValue);
+            setOpen(false, false);
+            focusTarget.focus();
+          });
+
+          control.addEventListener('keydown', function (event) {
+            if (event.key !== 'Escape' || menu.hidden) { return; }
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen(false, false);
+            toggle.focus();
+          });
+        }
+
+        setupPresetMenu(
+          'image-presets-toggle',
+          'image-presets-menu',
+          function () { return imageInput.value; },
+          function (value) { imageInput.value = value; },
+          imageInput
+        );
+        setupPresetMenu(
+          'resource-presets-toggle',
+          'resource-presets-menu',
+          function () { return resourcePresetInput.value; },
+          function (value, label) {
+            resourcePresetInput.value = value;
+            resourcePresetLabel.value = label;
+          },
+          document.getElementById('resource-presets-toggle')
+        );
+
+        function closePresetMenus() {
+          presetMenus.forEach(function (presetMenu) { presetMenu.close(); });
+        }
+
+        document.addEventListener('click', function (event) {
+          if (!event.target.closest('.preset-input-control')) { closePresetMenus(); }
+        });
+
+        function openCreateSandboxModal() {
+          createSandboxError.hidden = true;
+          createSandboxError.textContent = '';
+          createSandboxModal.classList.remove('is-closing');
+          createSandboxModal.returnValue = '';
+          closePresetMenus();
+          createSandboxModal.showModal();
+          requestAnimationFrame(function () {
+            createSandboxForm.elements.image.focus();
+          });
+        }
+
+        document.body.addEventListener('click', function (event) {
+          if (event.target.closest('[data-open-create-modal]')) { openCreateSandboxModal(); }
+        });
+
+        createSandboxModal.addEventListener('cancel', function (event) {
+          event.preventDefault();
+          dismissModal(createSandboxModal, 'cancel');
+        });
+
+        createSandboxModal.addEventListener('click', function (event) {
+          if (event.target.closest('[data-create-modal-close]') || event.target === createSandboxModal) {
+            dismissModal(createSandboxModal, 'cancel');
+          }
+        });
+
+        createSandboxModal.addEventListener('close', function () {
+          createSandboxForm.reset();
+          closePresetMenus();
+          createSandboxError.hidden = true;
+          createSandboxError.textContent = '';
+        });
+
+        createSandboxForm.addEventListener('htmx:beforeRequest', function () {
+          createSandboxForm.setAttribute('aria-busy', 'true');
+          createSandboxError.hidden = true;
+          createSandboxError.textContent = '';
+        });
+
+        createSandboxForm.addEventListener('htmx:afterRequest', function () {
+          createSandboxForm.setAttribute('aria-busy', 'false');
+        });
+
+        createSandboxForm.addEventListener('htmx:responseError', function (event) {
+          createSandboxError.textContent = event.detail.xhr.responseText.trim() || 'Unable to create sandbox.';
+          createSandboxError.hidden = false;
+        });
+
+        document.body.addEventListener('sandboxCreateAccepted', function () {
+          dismissModal(createSandboxModal, 'accepted');
         });
 
         document.body.addEventListener('htmx:confirm', function (event) {
@@ -261,7 +474,7 @@
         });
 
         window.localizeSandboxTimes = function () {
-          var formatter = new Intl.DateTimeFormat(undefined, {
+          var absoluteFormatter = new Intl.DateTimeFormat(undefined, {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
@@ -270,10 +483,29 @@
             second: '2-digit',
             timeZoneName: 'short'
           });
-          document.querySelectorAll('time[data-local-time]').forEach(function (element) {
+          var relativeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+          var now = Date.now();
+          var relativeThreshold = 3 * 60 * 60 * 1000;
+
+          document.querySelectorAll('time[data-created-time]').forEach(function (element) {
             var value = new Date(element.getAttribute('datetime'));
             if (Number.isNaN(value.getTime())) { return; }
-            element.textContent = formatter.format(value);
+
+            var difference = value.getTime() - now;
+            if (Math.abs(difference) <= relativeThreshold) {
+              var unit = 'second';
+              var divisor = 1000;
+              if (Math.abs(difference) >= 60 * 60 * 1000) {
+                unit = 'hour';
+                divisor = 60 * 60 * 1000;
+              } else if (Math.abs(difference) >= 60 * 1000) {
+                unit = 'minute';
+                divisor = 60 * 1000;
+              }
+              element.textContent = 'created ' + relativeFormatter.format(Math.round(difference / divisor), unit);
+            } else {
+              element.textContent = 'created ' + absoluteFormatter.format(value);
+            }
             element.title = value.toISOString();
           });
         };
@@ -300,6 +532,7 @@
           groups.forEach(function (group) {
             var visible = selected === 'all' || group.dataset.sandboxState === selected;
             group.hidden = !visible;
+            group.classList.toggle('is-filtered-view', visible && selected !== 'all');
             if (visible) { visibleGroups += 1; }
           });
 
@@ -391,7 +624,7 @@
         }
 
         document.body.addEventListener('keydown', function (event) {
-          var action = event.target.closest('[role="button"][hx-post]');
+          var action = event.target.closest('[role="button"][data-open-create-modal]');
           if (!action || (event.key !== 'Enter' && event.key !== ' ')) { return; }
           event.preventDefault();
           action.click();
@@ -399,6 +632,7 @@
         updateSidebarLabel();
         window.applySandboxFilter();
         window.localizeSandboxTimes();
+        window.setInterval(window.localizeSandboxTimes, 30 * 1000);
       });
 
       document.body.addEventListener('htmx:afterSwap', function () {

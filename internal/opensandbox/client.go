@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -50,12 +51,14 @@ type Options struct {
 	ServicePort       string
 	APIKeySecretName  string
 	APIKeySecretKey   string
+	Logger            *slog.Logger
 }
 
 type client struct {
 	httpClient *http.Client
 	proxyURL   string
 	options    Options
+	logger     *slog.Logger
 	close      func() error
 
 	apiKeyMutex sync.Mutex
@@ -131,11 +134,16 @@ func newClient(proxyURL string, httpClient *http.Client, options Options, closeC
 	if closeClient == nil {
 		closeClient = func() error { return nil }
 	}
+	logger := options.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
 
 	return &client{
 		httpClient: httpClient,
 		proxyURL:   strings.TrimRight(proxyURL, "/"),
 		options:    options,
+		logger:     logger,
 		close:      closeClient,
 	}, nil
 }
@@ -219,6 +227,32 @@ func (client *client) loadAPIKey(ctx context.Context) (string, error) {
 	}
 	client.apiKey = string(decodedAPIKey)
 	return client.apiKey, nil
+}
+
+func (client *client) logCall(
+	ctx context.Context,
+	system string,
+	method string,
+	path string,
+	status int,
+	startedAt time.Time,
+	err error,
+	extra ...slog.Attr,
+) {
+	level := slog.LevelInfo
+	attributes := []slog.Attr{
+		slog.String("system", system),
+		slog.String("method", method),
+		slog.String("path", path),
+		slog.Int("status", status),
+		slog.Duration("duration", time.Since(startedAt)),
+	}
+	if err != nil {
+		level = slog.LevelError
+		attributes = append(attributes, slog.Any("error", err))
+	}
+	attributes = append(attributes, extra...)
+	client.logger.LogAttrs(ctx, level, "upstream request", attributes...)
 }
 
 func (client *client) serviceProxyURL() string {

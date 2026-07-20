@@ -2,19 +2,23 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"embed"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
 	"html/template"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -29,10 +33,13 @@ var webFiles embed.FS
 type application struct {
 	assets           http.Handler
 	kubeconfigPath   string
+	indexTemplate    *template.Template
 	overviewTemplate *template.Template
 	sandboxReader    opensandbox.Reader
 	sandboxWriter    opensandbox.Writer
 	sandboxImage     string
+	context          context.Context
+	background       sync.WaitGroup
 }
 
 type commandConfig struct {
@@ -51,6 +58,7 @@ type sandboxView struct {
 	Namespace         string
 	PodName           string
 	Image             string
+	Resources         string
 }
 
 type sandboxStateCount struct {
@@ -71,14 +79,18 @@ type overviewData struct {
 	Error       string
 }
 
-var defaultSandboxStates = []string{"pending", "running", "paused", "failed"}
+var defaultSandboxStates = []string{"running", "pending", "paused", "failed"}
 
 func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	slog.SetDefault(logger)
+
 	if err := run(os.Args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return
 		}
-		log.Fatal(err)
+		logger.Error("dashboard exited", slog.Any("error", err))
+		os.Exit(1)
 	}
 }
 
@@ -91,18 +103,21 @@ func run(args []string) error {
 	client, err := opensandbox.NewFromKubeconfig(config.kubeconfigPath, opensandbox.Options{
 		Namespace:         config.openSandboxNamespace,
 		WorkloadNamespace: config.sandboxNamespace,
+		Logger:            slog.Default(),
 	})
 	if err != nil {
 		return fmt.Errorf("create OpenSandbox client: %w", err)
 	}
 	defer func() {
 		if err := client.Close(); err != nil {
-			log.Printf("close OpenSandbox client: %v", err)
+			slog.Error("close OpenSandbox client", slog.Any("error", err))
 		}
 	}()
 
-	app, err := newApplication(config.kubeconfigPath, client, client, config.sandboxImage)
+	appContext, cancelApp := context.WithCancel(context.Background())
+	app, err := newApplication(config.kubeconfigPath, client, client, config.sandboxImage, appContext)
 	if err != nil {
+		cancelApp()
 		return err
 	}
 
@@ -113,7 +128,7 @@ func run(args []string) error {
 
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           app.routes(),
+		Handler:           requestLogger(slog.Default(), app.routes()),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -131,13 +146,20 @@ func run(args []string) error {
 		defer cancel()
 
 		if err := server.Shutdown(shutdownContext); err != nil {
-			log.Printf("graceful shutdown: %v", err)
+			slog.Error("graceful shutdown", slog.Any("error", err))
 		}
 	}()
 
-	log.Printf("OpenSandbox dashboard listening on %s using kubeconfig %s", addr, app.kubeconfigPath)
-	if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-		return fmt.Errorf("serve dashboard: %w", err)
+	slog.Info(
+		"dashboard listening",
+		slog.String("address", addr),
+		slog.String("kubeconfig", app.kubeconfigPath),
+	)
+	serveErr := server.ListenAndServe()
+	cancelApp()
+	app.background.Wait()
+	if !errors.Is(serveErr, http.ErrServerClosed) {
+		return fmt.Errorf("serve dashboard: %w", serveErr)
 	}
 
 	return nil
@@ -213,10 +235,16 @@ func newApplication(
 	sandboxReader opensandbox.Reader,
 	sandboxWriter opensandbox.Writer,
 	sandboxImage string,
+	appContext context.Context,
 ) (*application, error) {
 	assetsFS, err := fs.Sub(webFiles, "web/assets")
 	if err != nil {
 		return nil, fmt.Errorf("load web assets: %w", err)
+	}
+
+	indexTemplate, err := template.ParseFS(webFiles, "web/index.html")
+	if err != nil {
+		return nil, fmt.Errorf("parse index template: %w", err)
 	}
 
 	overviewTemplate, err := template.ParseFS(webFiles, "web/overview.html")
@@ -227,10 +255,12 @@ func newApplication(
 	return &application{
 		assets:           http.FileServer(http.FS(assetsFS)),
 		kubeconfigPath:   kubeconfigPath,
+		indexTemplate:    indexTemplate,
 		overviewTemplate: overviewTemplate,
 		sandboxReader:    sandboxReader,
 		sandboxWriter:    sandboxWriter,
 		sandboxImage:     sandboxImage,
+		context:          appContext,
 	}, nil
 }
 
@@ -247,14 +277,16 @@ func (app *application) routes() http.Handler {
 }
 
 func (app *application) index(w http.ResponseWriter, r *http.Request) {
-	page, err := webFiles.ReadFile("web/index.html")
-	if err != nil {
-		http.Error(w, "unable to load dashboard", http.StatusInternalServerError)
-		return
+	data := struct {
+		SandboxImage string
+	}{
+		SandboxImage: app.sandboxImage,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(page)
+	if err := app.indexTemplate.Execute(w, data); err != nil {
+		slog.ErrorContext(r.Context(), "render index", slog.Any("error", err))
+	}
 }
 
 func (app *application) overview(w http.ResponseWriter, r *http.Request) {
@@ -262,30 +294,133 @@ func (app *application) overview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) createSandbox(w http.ResponseWriter, r *http.Request) {
-	created, err := app.sandboxWriter.CreateSandbox(r.Context(), opensandbox.CreateSandboxRequest{
-		Image:      app.sandboxImage,
-		Entrypoint: []string{"tail", "-f", "/dev/null"},
-		Timeout:    10 * time.Minute,
-		ResourceLimits: map[string]string{
-			"cpu":    "250m",
-			"memory": "256Mi",
-		},
-		Metadata: map[string]string{
-			"createdBy": "osb-dashboard",
-		},
-	})
+	request, err := app.createSandboxRequest(r)
 	if err != nil {
-		log.Printf("create sandbox: %v", err)
-		data := app.loadOverviewData(r.Context())
-		data.Error = "Unable to deploy sandbox: " + err.Error()
-		app.renderOverview(w, data)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	data := app.loadOverviewData(r.Context())
-	if data.Error != "" {
-		data = newOverviewData([]sandboxView{sandboxToView(created)})
+	requestID, err := createRequestID()
+	if err != nil {
+		http.Error(w, "Unable to create request identifier", http.StatusInternalServerError)
+		return
 	}
+	request.Metadata["osb-dashboard/request-id"] = requestID
+
+	type createResult struct {
+		sandbox opensandbox.Sandbox
+		err     error
+	}
+	result := make(chan createResult, 1)
+	app.background.Add(1)
+	go func() {
+		defer app.background.Done()
+		createContext, cancel := context.WithTimeout(app.context, 6*time.Minute)
+		defer cancel()
+		sandbox, err := app.sandboxWriter.CreateSandbox(createContext, request)
+		result <- createResult{sandbox: sandbox, err: err}
+	}()
+
+	poll := time.NewTicker(500 * time.Millisecond)
+	defer poll.Stop()
+	for {
+		select {
+		case createResult := <-result:
+			if createResult.err != nil {
+				slog.ErrorContext(r.Context(), "create sandbox", slog.Any("error", createResult.err))
+				http.Error(w, "Unable to create sandbox: "+createResult.err.Error(), http.StatusBadGateway)
+				return
+			}
+			app.renderAcceptedSandbox(w, r.Context(), requestID, &createResult.sandbox)
+			return
+		case <-poll.C:
+			sandboxes, listErr := app.sandboxReader.ListSandboxes(r.Context())
+			if sandbox := acceptedSandbox(sandboxes, requestID); sandbox != nil {
+				app.renderSandboxList(w, sandboxes, listErr)
+				return
+			}
+		case <-r.Context().Done():
+			return
+		case <-app.context.Done():
+			return
+		}
+	}
+}
+
+func (app *application) createSandboxRequest(r *http.Request) (opensandbox.CreateSandboxRequest, error) {
+	if err := r.ParseForm(); err != nil {
+		return opensandbox.CreateSandboxRequest{}, fmt.Errorf("parse create sandbox form: %w", err)
+	}
+
+	image := strings.TrimSpace(r.FormValue("image"))
+	if image == "" {
+		image = app.sandboxImage
+	}
+	resourcePresets := map[string]map[string]string{
+		"1core-2gib":  {"cpu": "1", "memory": "2Gi"},
+		"2core-4gib":  {"cpu": "2", "memory": "4Gi"},
+		"4core-8gib":  {"cpu": "4", "memory": "8Gi"},
+		"8core-16gib": {"cpu": "8", "memory": "16Gi"},
+	}
+	resourcePreset := strings.TrimSpace(r.FormValue("resourcePreset"))
+	if resourcePreset == "" {
+		resourcePreset = "1core-2gib"
+	}
+	resourceLimits, ok := resourcePresets[resourcePreset]
+	if !ok {
+		return opensandbox.CreateSandboxRequest{}, errors.New("select a valid resource preset")
+	}
+
+	metadata := map[string]string{"createdBy": "osb-dashboard"}
+
+	return opensandbox.CreateSandboxRequest{
+		Image:          image,
+		Entrypoint:     []string{"tail", "-f", "/dev/null"},
+		ResourceLimits: resourceLimits,
+		Metadata:       metadata,
+	}, nil
+}
+
+func createRequestID() (string, error) {
+	value := make([]byte, 12)
+	if _, err := rand.Read(value); err != nil {
+		return "", fmt.Errorf("generate create request ID: %w", err)
+	}
+	return hex.EncodeToString(value), nil
+}
+
+func acceptedSandbox(sandboxes []opensandbox.Sandbox, requestID string) *opensandbox.Sandbox {
+	for index := range sandboxes {
+		if sandboxes[index].Metadata["osb-dashboard/request-id"] != requestID {
+			continue
+		}
+		state := strings.ToLower(sandboxes[index].State)
+		if state == "pending" || state == "running" {
+			return &sandboxes[index]
+		}
+	}
+	return nil
+}
+
+func (app *application) renderAcceptedSandbox(
+	w http.ResponseWriter,
+	ctx context.Context,
+	requestID string,
+	created *opensandbox.Sandbox,
+) {
+	sandboxes, listErr := app.sandboxReader.ListSandboxes(ctx)
+	if acceptedSandbox(sandboxes, requestID) == nil && created != nil {
+		sandboxes = append(sandboxes, *created)
+	}
+	app.renderSandboxList(w, sandboxes, listErr)
+}
+
+func (app *application) renderSandboxList(w http.ResponseWriter, sandboxes []opensandbox.Sandbox, listErr error) {
+	data := app.overviewDataFromSandboxes(sandboxes, "")
+	if listErr != nil {
+		data.Error = "Some sandbox sources could not be loaded: " + listErr.Error()
+	}
+	w.Header().Set("HX-Trigger", "sandboxCreateAccepted")
 	app.renderOverview(w, data)
 }
 
@@ -311,7 +446,12 @@ func (app *application) deleteSandbox(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := app.sandboxWriter.DeleteSandbox(r.Context(), *target); err != nil {
-		log.Printf("delete sandbox %s: %v", sandboxID, err)
+		slog.ErrorContext(
+			r.Context(),
+			"delete sandbox",
+			slog.String("sandbox_id", sandboxID),
+			slog.Any("error", err),
+		)
 		data := app.overviewDataFromSandboxes(sandboxes, "")
 		data.Error = "Unable to delete sandbox: " + err.Error()
 		app.renderOverview(w, data)
@@ -329,7 +469,7 @@ func (app *application) loadOverviewDataExcluding(ctx context.Context, excludedI
 	sandboxes, err := app.sandboxReader.ListSandboxes(ctx)
 	data := app.overviewDataFromSandboxes(sandboxes, excludedID)
 	if err != nil {
-		log.Printf("list sandboxes: %v", err)
+		slog.ErrorContext(ctx, "list sandboxes", slog.Any("error", err))
 		data.Error = "Some sandbox sources could not be loaded: " + err.Error()
 	}
 	return data
@@ -349,7 +489,7 @@ func (app *application) overviewDataFromSandboxes(sandboxes []opensandbox.Sandbo
 func (app *application) renderOverview(w http.ResponseWriter, data overviewData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := app.overviewTemplate.Execute(w, data); err != nil {
-		log.Printf("render overview: %v", err)
+		slog.Error("render overview", slog.Any("error", err))
 	}
 }
 
@@ -367,7 +507,36 @@ func sandboxToView(sandbox opensandbox.Sandbox) sandboxView {
 		Namespace:         displayValue(sandbox.Namespace),
 		PodName:           displayValue(sandbox.PodName),
 		Image:             displayValue(sandbox.Image),
+		Resources:         formatSandboxResources(sandbox.CPU, sandbox.Memory),
 	}
+}
+
+func formatSandboxResources(cpu, memory string) string {
+	var values []string
+	if cpu != "" {
+		if cores, err := strconv.Atoi(cpu); err == nil {
+			label := "cores"
+			if cores == 1 {
+				label = "core"
+			}
+			values = append(values, fmt.Sprintf("%d %s", cores, label))
+		} else {
+			values = append(values, cpu+" CPU")
+		}
+	}
+	if memory != "" {
+		memory = strings.TrimSpace(memory)
+		if strings.HasSuffix(memory, "Gi") {
+			memory = strings.TrimSuffix(memory, "Gi") + " GiB"
+		} else if strings.HasSuffix(memory, "Mi") {
+			memory = strings.TrimSuffix(memory, "Mi") + " MiB"
+		}
+		values = append(values, memory)
+	}
+	if len(values) == 0 {
+		return "—"
+	}
+	return strings.Join(values, " / ")
 }
 
 func displayValue(value string) string {

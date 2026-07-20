@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // CreateSandbox creates an image-backed sandbox.
@@ -19,8 +21,8 @@ func (client *client) CreateSandbox(ctx context.Context, request CreateSandboxRe
 	if len(request.Entrypoint) == 0 {
 		return Sandbox{}, errors.New("sandbox entrypoint is required")
 	}
-	if request.Timeout <= 0 {
-		return Sandbox{}, errors.New("sandbox timeout must be positive")
+	if request.Timeout < 0 {
+		return Sandbox{}, errors.New("sandbox timeout must not be negative")
 	}
 	if len(request.ResourceLimits) == 0 {
 		return Sandbox{}, errors.New("sandbox resource limits are required")
@@ -29,36 +31,60 @@ func (client *client) CreateSandbox(ctx context.Context, request CreateSandboxRe
 	payload := apiCreateRequest{
 		Image:          apiSandboxImage{URI: request.Image},
 		Entrypoint:     request.Entrypoint,
-		Timeout:        int(request.Timeout.Seconds()),
 		ResourceLimits: request.ResourceLimits,
 		Metadata:       request.Metadata,
+	}
+	if request.Timeout > 0 {
+		timeoutSeconds := int(request.Timeout.Seconds())
+		payload.Timeout = &timeoutSeconds
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return Sandbox{}, fmt.Errorf("encode create sandbox request: %w", err)
 	}
 
-	httpRequest, err := client.newAPIRequest(ctx, http.MethodPost, "/sandboxes", bytes.NewReader(body))
+	const path = "/sandboxes"
+	startedAt := time.Now()
+	httpRequest, err := client.newAPIRequest(ctx, http.MethodPost, path, bytes.NewReader(body))
 	if err != nil {
+		client.logCall(ctx, "opensandbox", http.MethodPost, path, 0, startedAt, err)
 		return Sandbox{}, err
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
 
 	response, err := client.httpClient.Do(httpRequest)
 	if err != nil {
-		return Sandbox{}, fmt.Errorf("create sandbox: %w", err)
+		requestErr := fmt.Errorf("create sandbox: %w", err)
+		client.logCall(ctx, "opensandbox", http.MethodPost, path, 0, startedAt, requestErr)
+		return Sandbox{}, requestErr
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusAccepted {
-		return Sandbox{}, responseStatusError("create sandbox", response)
+		requestErr := responseStatusError("create sandbox", response)
+		client.logCall(ctx, "opensandbox", http.MethodPost, path, response.StatusCode, startedAt, requestErr)
+		return Sandbox{}, requestErr
 	}
 
 	var sandbox apiSandbox
 	if err := json.NewDecoder(response.Body).Decode(&sandbox); err != nil {
-		return Sandbox{}, fmt.Errorf("decode created sandbox: %w", err)
+		decodeErr := fmt.Errorf("decode created sandbox: %w", err)
+		client.logCall(ctx, "opensandbox", http.MethodPost, path, response.StatusCode, startedAt, decodeErr)
+		return Sandbox{}, decodeErr
 	}
 	model := sandbox.model()
 	model.Namespace = client.options.WorkloadNamespace
+	client.logCall(
+		ctx,
+		"opensandbox",
+		http.MethodPost,
+		path,
+		response.StatusCode,
+		startedAt,
+		nil,
+		slog.String("sandbox_id", model.ID),
+		slog.String("sandbox_state", model.State),
+		slog.String("image", request.Image),
+	)
 	return model, nil
 }
 
@@ -99,26 +125,48 @@ func (client *client) DeleteSandbox(ctx context.Context, sandbox Sandbox) error 
 }
 
 func (client *client) deleteLifecycleSandbox(ctx context.Context, sandboxID string) (bool, error) {
-	request, err := client.newAPIRequest(
-		ctx,
-		http.MethodDelete,
-		"/sandboxes/"+url.PathEscape(sandboxID),
-		nil,
-	)
+	path := "/sandboxes/" + url.PathEscape(sandboxID)
+	startedAt := time.Now()
+	request, err := client.newAPIRequest(ctx, http.MethodDelete, path, nil)
 	if err != nil {
+		client.logCall(ctx, "opensandbox", http.MethodDelete, path, 0, startedAt, err)
 		return false, err
 	}
 	response, err := client.httpClient.Do(request)
 	if err != nil {
-		return false, fmt.Errorf("delete lifecycle sandbox: %w", err)
+		requestErr := fmt.Errorf("delete lifecycle sandbox: %w", err)
+		client.logCall(ctx, "opensandbox", http.MethodDelete, path, 0, startedAt, requestErr)
+		return false, requestErr
 	}
 	defer response.Body.Close()
 	if response.StatusCode == http.StatusNotFound {
+		client.logCall(
+			ctx,
+			"opensandbox",
+			http.MethodDelete,
+			path,
+			response.StatusCode,
+			startedAt,
+			nil,
+			slog.String("sandbox_id", sandboxID),
+		)
 		return false, nil
 	}
 	if response.StatusCode != http.StatusNoContent {
-		return false, responseStatusError("delete lifecycle sandbox", response)
+		requestErr := responseStatusError("delete lifecycle sandbox", response)
+		client.logCall(ctx, "opensandbox", http.MethodDelete, path, response.StatusCode, startedAt, requestErr)
+		return false, requestErr
 	}
+	client.logCall(
+		ctx,
+		"opensandbox",
+		http.MethodDelete,
+		path,
+		response.StatusCode,
+		startedAt,
+		nil,
+		slog.String("sandbox_id", sandboxID),
+	)
 	return true, nil
 }
 
@@ -127,30 +175,48 @@ func (client *client) deleteCustomResource(ctx context.Context, resource Resourc
 		resource.Namespace == "" || resource.Name == "" {
 		return false, errors.New("sandbox Kubernetes resource reference is incomplete")
 	}
-	endpoint := fmt.Sprintf(
-		"%s/apis/%s/%s/namespaces/%s/%s/%s",
-		client.proxyURL,
+	path := fmt.Sprintf(
+		"/apis/%s/%s/namespaces/%s/%s/%s",
 		url.PathEscape(resource.Group),
 		url.PathEscape(resource.Version),
 		url.PathEscape(resource.Namespace),
 		url.PathEscape(resource.Plural),
 		url.PathEscape(resource.Name),
 	)
-	request, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
+	startedAt := time.Now()
+	request, err := http.NewRequestWithContext(ctx, http.MethodDelete, client.proxyURL+path, nil)
 	if err != nil {
-		return false, fmt.Errorf("create Kubernetes sandbox delete request: %w", err)
+		requestErr := fmt.Errorf("create Kubernetes sandbox delete request: %w", err)
+		client.logCall(ctx, "kubernetes", http.MethodDelete, path, 0, startedAt, requestErr)
+		return false, requestErr
 	}
 	response, err := client.httpClient.Do(request)
 	if err != nil {
-		return false, fmt.Errorf("delete Kubernetes sandbox resource: %w", err)
+		requestErr := fmt.Errorf("delete Kubernetes sandbox resource: %w", err)
+		client.logCall(ctx, "kubernetes", http.MethodDelete, path, 0, startedAt, requestErr)
+		return false, requestErr
 	}
 	defer response.Body.Close()
 	if response.StatusCode == http.StatusNotFound {
+		client.logCall(ctx, "kubernetes", http.MethodDelete, path, response.StatusCode, startedAt, nil)
 		return false, nil
 	}
 	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusAccepted {
-		return false, responseStatusError("delete Kubernetes sandbox resource", response)
+		requestErr := responseStatusError("delete Kubernetes sandbox resource", response)
+		client.logCall(ctx, "kubernetes", http.MethodDelete, path, response.StatusCode, startedAt, requestErr)
+		return false, requestErr
 	}
+	client.logCall(
+		ctx,
+		"kubernetes",
+		http.MethodDelete,
+		path,
+		response.StatusCode,
+		startedAt,
+		nil,
+		slog.String("resource", resource.Name),
+		slog.String("namespace", resource.Namespace),
+	)
 	return true, nil
 }
 

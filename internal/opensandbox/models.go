@@ -20,6 +20,8 @@ type Sandbox struct {
 	Namespace string
 	PodName   string
 	Image     string
+	CPU       string
+	Memory    string
 	Metadata  map[string]string
 	Sources   []string
 	Resources []ResourceReference
@@ -67,7 +69,7 @@ type apiSandboxImage struct {
 type apiCreateRequest struct {
 	Image          apiSandboxImage   `json:"image"`
 	Entrypoint     []string          `json:"entrypoint"`
-	Timeout        int               `json:"timeout"`
+	Timeout        *int              `json:"timeout,omitempty"`
 	ResourceLimits map[string]string `json:"resourceLimits"`
 	Metadata       map[string]string `json:"metadata,omitempty"`
 }
@@ -103,8 +105,14 @@ type podSpec struct {
 }
 
 type containerSpec struct {
-	Image   string   `json:"image"`
-	Command []string `json:"command"`
+	Image     string             `json:"image"`
+	Command   []string           `json:"command"`
+	Resources containerResources `json:"resources"`
+}
+
+type containerResources struct {
+	Requests map[string]string `json:"requests"`
+	Limits   map[string]string `json:"limits"`
 }
 
 type resourceStatus struct {

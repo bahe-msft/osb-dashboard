@@ -40,28 +40,33 @@
               <span class="sandbox-name">{{.Name}}</span>
             </div>
             <span class="sandbox-updated">
-              Created <time datetime="{{.CreatedAtISO}}" data-local-time>{{.CreatedAtFallback}}</time>
-              <span class="metadata-separator" aria-hidden="true">·</span>
               <span class="sandbox-runtime" title="{{.Namespace}} / {{.PodName}}">{{.Namespace}} / {{.PodName}}</span>
             </span>
-            <span class="sandbox-image" title="{{.Image}}">{{.Image}}</span>
-            <button
-              class="sandbox-delete-button"
-              type="button"
-              aria-label="Delete sandbox {{.Name}}"
-              title="Delete sandbox"
-              hx-delete="/dashboard/sandboxes/{{urlquery .ID}}"
-              hx-target="#overview"
-              hx-swap="innerHTML"
-              hx-indicator="this"
-              hx-disabled-elt="this"
-              hx-confirm="Deleting sandbox {{.ID}} cannot be undone."
-              data-confirm-title="Delete sandbox?"
-              data-confirm-label="Delete"
-              data-confirm-variant="danger"
-            >
-              <i data-lucide="circle-x" aria-hidden="true"></i>
-            </button>
+            <span class="sandbox-specs" title="{{.Image}} · {{.Resources}}">
+              <span class="sandbox-image"><i data-lucide="disc" aria-hidden="true"></i><span>{{.Image}}</span></span>
+              <span class="metadata-separator" aria-hidden="true">·</span>
+              <span class="sandbox-resources"><i data-lucide="cpu" aria-hidden="true"></i><span>{{.Resources}}</span></span>
+            </span>
+            <span class="sandbox-row-actions">
+              <button
+                class="sandbox-delete-button"
+                type="button"
+                aria-label="Delete sandbox {{.Name}}"
+                title="Delete sandbox"
+                hx-delete="/dashboard/sandboxes/{{urlquery .ID}}"
+                hx-target="#overview"
+                hx-swap="innerHTML"
+                hx-indicator="this"
+                hx-disabled-elt="this"
+                hx-confirm="Deleting sandbox {{.ID}} cannot be undone."
+                data-confirm-title="Delete sandbox?"
+                data-confirm-label="Delete"
+                data-confirm-variant="danger"
+              >
+                <i data-lucide="circle-x" aria-hidden="true"></i>
+              </button>
+              <time datetime="{{.CreatedAtISO}}" data-created-time>created {{.CreatedAtFallback}}</time>
+            </span>
           </article>
         {{end}}
       </div>
@@ -81,11 +86,7 @@
       tabindex="0"
       aria-labelledby="empty-state-title"
       title="Deploy a new sandbox"
-      hx-post="/dashboard/sandboxes"
-      hx-target="#overview"
-      hx-swap="innerHTML"
-      hx-indicator="this"
-      hx-disabled-elt=".sandbox-create-control"
+      data-open-create-modal
     >
       <span class="empty-state-icon" aria-hidden="true"><i data-lucide="box"></i></span>
       <h2 id="empty-state-title">Deploy a new sandbox</h2>

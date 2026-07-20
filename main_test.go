@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,18 +96,72 @@ func TestParseCommandConfigRejectsInvalidArguments(t *testing.T) {
 	}
 }
 
+func TestCreateSandboxRequest(t *testing.T) {
+	app := &application{sandboxImage: "default:image"}
+	form := url.Values{
+		"image":          {"custom:image"},
+		"resourcePreset": {"2core-4gib"},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/dashboard/sandboxes", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	result, err := app.createSandboxRequest(request)
+	if err != nil {
+		t.Fatalf("createSandboxRequest() error = %v", err)
+	}
+	if result.Image != "custom:image" || result.Timeout != 0 {
+		t.Errorf("createSandboxRequest() = %#v", result)
+	}
+	if result.ResourceLimits["cpu"] != "2" || result.ResourceLimits["memory"] != "4Gi" {
+		t.Errorf("ResourceLimits = %#v", result.ResourceLimits)
+	}
+	if result.Metadata["createdBy"] != "osb-dashboard" {
+		t.Errorf("Metadata = %#v", result.Metadata)
+	}
+}
+
+func TestCreateSandboxRequestRejectsInvalidResourcePreset(t *testing.T) {
+	app := &application{sandboxImage: "default:image"}
+	request := httptest.NewRequest(http.MethodPost, "/dashboard/sandboxes", strings.NewReader("resourcePreset=invalid"))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	_, err := app.createSandboxRequest(request)
+	if err == nil || !strings.Contains(err.Error(), "valid resource preset") {
+		t.Fatalf("createSandboxRequest() error = %v", err)
+	}
+}
+
+func TestFormatSandboxResources(t *testing.T) {
+	tests := []struct {
+		cpu    string
+		memory string
+		want   string
+	}{
+		{cpu: "1", memory: "2Gi", want: "1 core / 2 GiB"},
+		{cpu: "4", memory: "8Gi", want: "4 cores / 8 GiB"},
+		{cpu: "250m", memory: "512Mi", want: "250m CPU / 512 MiB"},
+		{want: "—"},
+	}
+	for _, test := range tests {
+		if got := formatSandboxResources(test.cpu, test.memory); got != test.want {
+			t.Errorf("formatSandboxResources(%q, %q) = %q, want %q", test.cpu, test.memory, got, test.want)
+		}
+	}
+}
+
 func TestNewOverviewDataGroupsSandboxesByState(t *testing.T) {
 	data := newOverviewData([]sandboxView{
 		{Name: "sandbox-paused", State: "Paused"},
 		{Name: "sandbox-failed", State: "failed"},
 		{Name: "sandbox-running", State: " running "},
+		{Name: "sandbox-pending", State: "pending"},
 	})
 
-	if data.Total != 3 {
-		t.Fatalf("Total = %d, want 3", data.Total)
+	if data.Total != 4 {
+		t.Fatalf("Total = %d, want 4", data.Total)
 	}
 
-	wantStates := []string{"running", "paused", "failed"}
+	wantStates := []string{"running", "pending", "paused", "failed"}
 	if len(data.StateCounts) != len(wantStates) {
 		t.Fatalf("len(StateCounts) = %d, want %d", len(data.StateCounts), len(wantStates))
 	}
@@ -151,6 +206,7 @@ func TestRoutes(t *testing.T) {
 		service,
 		service,
 		"python:3.12-slim",
+		context.Background(),
 	)
 	if err != nil {
 		t.Fatalf("newApplication() error = %v", err)
@@ -215,6 +271,9 @@ func TestRoutes(t *testing.T) {
 			response := httptest.NewRecorder()
 
 			app.routes().ServeHTTP(response, request)
+			if test.method == http.MethodPost {
+				app.background.Wait()
+			}
 
 			result := response.Result()
 			defer result.Body.Close()
@@ -222,8 +281,15 @@ func TestRoutes(t *testing.T) {
 			if result.StatusCode != http.StatusOK {
 				t.Fatalf("status = %d, want %d", result.StatusCode, http.StatusOK)
 			}
-			if got := result.Header.Get("Content-Type"); got != test.contentType {
-				t.Errorf("Content-Type = %q, want %q", got, test.contentType)
+			if test.method == http.MethodPost {
+				if got := result.Header.Get("HX-Trigger"); got != "sandboxCreateAccepted" {
+					t.Errorf("HX-Trigger = %q, want %q", got, "sandboxCreateAccepted")
+				}
+			}
+			if test.contentType != "" {
+				if got := result.Header.Get("Content-Type"); got != test.contentType {
+					t.Errorf("Content-Type = %q, want %q", got, test.contentType)
+				}
 			}
 
 			body, err := io.ReadAll(result.Body)
@@ -231,7 +297,7 @@ func TestRoutes(t *testing.T) {
 				t.Fatalf("read response body: %v", err)
 			}
 			bodyText := string(body)
-			if !strings.Contains(bodyText, test.contains) {
+			if test.contains != "" && !strings.Contains(bodyText, test.contains) {
 				t.Errorf("response body does not contain %q", test.contains)
 			}
 			if test.doesNotContain != "" && strings.Contains(bodyText, test.doesNotContain) {

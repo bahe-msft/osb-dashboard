@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	kuberneteslabels "k8s.io/apimachinery/pkg/labels"
 )
@@ -18,6 +20,7 @@ import (
 // as an empty source, while authorization and transport failures are returned
 // alongside any successfully discovered sandboxes.
 func (client *client) ListSandboxes(ctx context.Context) ([]Sandbox, error) {
+	startedAt := time.Now()
 	pods, podsErr := client.listPods(ctx)
 	lifecycleSandboxes, lifecycleErr := client.listLifecycleSandboxes(ctx)
 	batchSandboxes, batchErr := client.listCustomResourceSandboxes(
@@ -42,27 +45,52 @@ func (client *client) ListSandboxes(ctx context.Context) ([]Sandbox, error) {
 	)
 
 	merged := mergeSandboxes(lifecycleSandboxes, batchSandboxes, agentSandboxes)
-	return merged, errors.Join(lifecycleErr, batchErr, agentErr, podsErr)
+	discoveryErr := errors.Join(lifecycleErr, batchErr, agentErr, podsErr)
+	level := slog.LevelInfo
+	if discoveryErr != nil {
+		level = slog.LevelWarn
+	}
+	client.logger.LogAttrs(
+		ctx,
+		level,
+		"sandbox discovery",
+		slog.Int("lifecycle_count", len(lifecycleSandboxes)),
+		slog.Int("batchsandbox_count", len(batchSandboxes)),
+		slog.Int("agentsandbox_count", len(agentSandboxes)),
+		slog.Int("merged_count", len(merged)),
+		slog.Duration("duration", time.Since(startedAt)),
+		slog.Any("error", discoveryErr),
+	)
+	return merged, discoveryErr
 }
 
 func (client *client) listLifecycleSandboxes(ctx context.Context) ([]Sandbox, error) {
-	request, err := client.newAPIRequest(ctx, http.MethodGet, "/sandboxes?page=1&pageSize=100", nil)
+	const path = "/sandboxes?page=1&pageSize=100"
+	startedAt := time.Now()
+	request, err := client.newAPIRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
+		client.logCall(ctx, "opensandbox", http.MethodGet, path, 0, startedAt, err)
 		return nil, err
 	}
 
 	response, err := client.httpClient.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("list lifecycle sandboxes: %w", err)
+		requestErr := fmt.Errorf("list lifecycle sandboxes: %w", err)
+		client.logCall(ctx, "opensandbox", http.MethodGet, path, 0, startedAt, requestErr)
+		return nil, requestErr
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return nil, responseStatusError("list lifecycle sandboxes", response)
+		requestErr := responseStatusError("list lifecycle sandboxes", response)
+		client.logCall(ctx, "opensandbox", http.MethodGet, path, response.StatusCode, startedAt, requestErr)
+		return nil, requestErr
 	}
 
 	var payload listResponse
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
-		return nil, fmt.Errorf("decode lifecycle sandbox list: %w", err)
+		decodeErr := fmt.Errorf("decode lifecycle sandbox list: %w", err)
+		client.logCall(ctx, "opensandbox", http.MethodGet, path, response.StatusCode, startedAt, decodeErr)
+		return nil, decodeErr
 	}
 
 	sandboxes := make([]Sandbox, 0, len(payload.Items))
@@ -71,6 +99,16 @@ func (client *client) listLifecycleSandboxes(ctx context.Context) ([]Sandbox, er
 		model.Namespace = client.options.WorkloadNamespace
 		sandboxes = append(sandboxes, model)
 	}
+	client.logCall(
+		ctx,
+		"opensandbox",
+		http.MethodGet,
+		path,
+		response.StatusCode,
+		startedAt,
+		nil,
+		slog.Int("sandbox_count", len(sandboxes)),
+	)
 	return sandboxes, nil
 }
 
@@ -150,6 +188,7 @@ func (client *client) listCustomResourceSandboxes(
 }
 
 func batchSandboxFromResource(resource sandboxResource, pods []podResource) Sandbox {
+	cpu, memory := firstContainerResources(resource.Spec.Template.Spec)
 	return Sandbox{
 		ID:        resourceID(resource.Metadata),
 		State:     batchSandboxState(resource.Status),
@@ -157,6 +196,8 @@ func batchSandboxFromResource(resource sandboxResource, pods []podResource) Sand
 		Namespace: resource.Metadata.Namespace,
 		PodName:   batchSandboxPodName(resource, pods),
 		Image:     firstContainerImage(resource.Spec.Template.Spec),
+		CPU:       cpu,
+		Memory:    memory,
 		Metadata:  userMetadata(resource.Metadata.Labels),
 		Sources:   []string{SourceBatchSandbox},
 		Resources: []ResourceReference{{
@@ -171,6 +212,7 @@ func batchSandboxFromResource(resource sandboxResource, pods []podResource) Sand
 }
 
 func agentSandboxFromResource(resource sandboxResource, pods []podResource) Sandbox {
+	cpu, memory := firstContainerResources(resource.Spec.PodTemplate.Spec)
 	return Sandbox{
 		ID:        resourceID(resource.Metadata),
 		State:     agentSandboxState(resource.Status),
@@ -178,6 +220,8 @@ func agentSandboxFromResource(resource sandboxResource, pods []podResource) Sand
 		Namespace: resource.Metadata.Namespace,
 		PodName:   agentSandboxPodName(resource, pods),
 		Image:     firstContainerImage(resource.Spec.PodTemplate.Spec),
+		CPU:       cpu,
+		Memory:    memory,
 		Metadata:  userMetadata(resource.Metadata.Labels),
 		Sources:   []string{SourceAgentSandbox},
 		Resources: []ResourceReference{{
@@ -302,6 +346,22 @@ func firstContainerImage(spec podSpec) string {
 	return spec.Containers[0].Image
 }
 
+func firstContainerResources(spec podSpec) (string, string) {
+	if len(spec.Containers) == 0 {
+		return "", ""
+	}
+	resources := spec.Containers[0].Resources
+	cpu := resources.Requests["cpu"]
+	memory := resources.Requests["memory"]
+	if cpu == "" {
+		cpu = resources.Limits["cpu"]
+	}
+	if memory == "" {
+		memory = resources.Limits["memory"]
+	}
+	return cpu, memory
+}
+
 func userMetadata(labels map[string]string) map[string]string {
 	metadata := make(map[string]string)
 	for key, value := range labels {
@@ -345,6 +405,12 @@ func mergeSandboxes(sources ...[]Sandbox) []Sandbox {
 			}
 			if existing.Image == "" {
 				existing.Image = sandbox.Image
+			}
+			if existing.CPU == "" {
+				existing.CPU = sandbox.CPU
+			}
+			if existing.Memory == "" {
+				existing.Memory = sandbox.Memory
 			}
 			if len(existing.Metadata) == 0 {
 				existing.Metadata = sandbox.Metadata
