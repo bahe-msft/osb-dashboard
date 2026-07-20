@@ -2,43 +2,50 @@
  * OpenSandbox dashboard UI guidelines
  *
  * Visual character
- * - Calm, compact developer-tool interface inspired by lightweight admin
- *   consoles. Prioritize scanability and utility over decoration.
- * - Use the DaisyUI corporate palette for light mode and dim palette for dark
- *   mode, with quiet surfaces, subtle borders, and muted secondary metadata.
- * - Reserve green for branding and running/healthy states, yellow for pending
- *   states, gray for paused states, and red for failed or canceled states.
+ * - Keep the interface calm, compact, and utility-first, with quiet surfaces,
+ *   subtle borders, sparse Lucide icons, and restrained shadows.
+ * - Use the DaisyUI corporate palette in light mode and dim palette in dark
+ *   mode. Reserve semantic color for state: green for healthy, yellow for
+ *   pending, gray for paused, and red for failures or critically high usage.
+ * - Resource-usage icons and meters stay neutral by default; only critical
+ *   utilization should switch to the danger color.
  *
  * Typography and hierarchy
  * - Use the system sans-serif stack at 14px/1.4 with restrained weights.
- * - Keep page titles and resource names prominent; breadcrumbs, timestamps,
- *   counts, technical metadata, and supporting copy remain muted.
- * - Use a system monospace stack for future instructions, event payloads, IDs,
- *   and other technical blocks. Technical values should remain selectable.
+ * - Keep page titles, resource names, and property values prominent. Property
+ *   icons, labels, timestamps, counts, and supporting copy remain subtle.
+ * - Display detail properties as an icon and label on the first line with the
+ *   value beneath it. Keep technical values selectable and truncate safely.
+ * - Use the system monospace stack for terminals, instructions, payloads, IDs,
+ *   and other technical blocks.
  *
  * Layout and navigation
- * - Desktop uses a collapsible 248px sidebar beside a large content panel with a
- *   16px radius and breathing room around the page edge.
- * - Below 900px, hide the sidebar and let the content panel become full-width.
- * - Use sparse Lucide line icons. Active navigation is indicated with darker,
- *   heavier text rather than a strong filled background.
- * - Persist sidebar, theme, filter, and live-update preferences in localStorage.
+ * - Desktop uses a collapsible 248px sidebar beside a rounded content panel;
+ *   below 900px the sidebar is hidden and the content panel becomes full-width.
+ * - Align the workspace logo vertically with the top navigation title. Keep
+ *   navigation icons fixed in position and appearance during sidebar collapse.
+ * - Sandbox details use a terminal workspace plus a responsive right pane. Keep
+ *   the pane selector aligned with property icons; move it above pane content on
+ *   narrow viewports.
+ * - Persist sidebar, theme, filter, detail-pane, and live-update preferences in
+ *   localStorage.
  *
  * Components and states
- * - Prefer compact two-line resource rows with generous horizontal space,
- *   rounded hover surfaces, and no card border around each row.
+ * - Prefer borderless icon-led property lists over table-like detail cards.
+ * - Show live CPU, one-minute load, and memory usage as compact property rows
+ *   with neutral meters and secondary informational text.
  * - Represent status with hollow colored rings, never solid status dots.
- * - Use rounded filter pills, circular toolbar controls, light borders, subtle
- *   shadows, and outlined metadata chips.
- * - Group related rows beneath quiet, collapsible gray section headers.
- * - Empty and disconnected states should be direct, useful, and visually calm.
+ * - Use rounded filter pills and toolbar controls; group resource rows beneath
+ *   quiet, collapsible section headers.
+ * - Empty, loading, error, and disconnected states should be direct and calm.
  *
  * Interaction and motion
- * - Keep transitions quick and restrained (about 150–200ms): hover colors,
- *   sidebar resizing, chevron rotation, and slight logo scaling.
- * - Respect prefers-reduced-motion.
- * - HTMX may refresh live regions every five seconds while the page is visible;
- *   the persisted live-update toggle must be able to pause polling.
+ * - Keep transitions restrained at roughly 150–200ms for hovers, panel changes,
+ *   sidebar resizing, detail-pane toggles, and property-content switches.
+ * - Respect prefers-reduced-motion and preserve active terminal connections
+ *   across unrelated HTMX fragment swaps.
+ * - Refresh visible live regions every five seconds. The live-update preference
+ *   must pause polling, and stats refreshes must not replace the terminal.
  */
 
 :root,
@@ -116,8 +123,14 @@
   box-sizing: border-box;
 }
 
+html,
 body {
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  min-height: 0;
   margin: 0;
   color: var(--os-text);
   background: var(--os-bg);
@@ -132,7 +145,8 @@ label {
 
 button:focus-visible,
 a:focus-visible,
-[role="button"]:focus-visible {
+[role="button"]:focus-visible,
+[role="link"]:focus-visible {
   outline: 2px solid color-mix(in oklch, var(--os-primary) 65%, transparent);
   outline-offset: 2px;
 }
@@ -148,7 +162,9 @@ button:disabled {
 .app-shell {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
   transition: grid-template-columns 0.2s ease;
 }
 
@@ -159,7 +175,7 @@ button:disabled {
   min-width: 0;
   flex-direction: column;
   overflow: visible;
-  padding: 14px 10px;
+  padding: 21px 10px 14px;
   border: 0;
   background: var(--os-sidebar);
 }
@@ -169,7 +185,7 @@ button:disabled {
   height: 32px;
   align-items: center;
   gap: 9px;
-  margin-bottom: 22px;
+  margin-bottom: 15px;
   padding: 0 8px;
   font-weight: 650;
 }
@@ -255,9 +271,15 @@ button:disabled {
   color: var(--os-subtle);
 }
 
+.sidebar-toggle.sidebar-button {
+  border: 1px solid var(--os-border);
+  background: var(--os-panel);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+}
+
 .sidebar-toggle.sidebar-button:hover {
   color: var(--os-text);
-  background: transparent;
+  background: var(--os-hover);
 }
 
 .sidebar-button svg,
@@ -478,13 +500,18 @@ button.nav-item {
   width: 100%;
   min-width: 0;
   max-width: none;
+  height: 100vh;
+  min-height: 0;
   margin: 0;
   padding: 8px 10px 32px 0;
 }
 
 .content-panel {
-  min-height: calc(100vh - 40px);
+  display: flex;
+  height: calc(100vh - 40px);
+  min-height: 0;
   overflow: hidden;
+  flex-direction: column;
   border: 1px solid var(--os-border);
   border-radius: 16px;
   background: var(--os-panel);
@@ -493,11 +520,19 @@ button.nav-item {
 .topbar {
   display: flex;
   height: 58px;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
   border-bottom: 1px solid var(--os-border-soft);
   user-select: none;
+}
+
+.content-panel > main {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .topbar-breadcrumb {
@@ -506,6 +541,24 @@ button.nav-item {
   align-items: center;
   gap: 8px;
   font-size: 15px;
+}
+
+.topbar-breadcrumb a {
+  overflow: hidden;
+  max-width: 14rem;
+  color: var(--os-muted);
+  font-weight: 580;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-breadcrumb a:hover {
+  color: var(--os-text);
+}
+
+.topbar-breadcrumb-sep {
+  color: var(--os-subtle);
 }
 
 .topbar-breadcrumb-current {
@@ -520,6 +573,10 @@ button.nav-item {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.toolbar-action {
+  display: inline-flex;
 }
 
 .icon-button {
@@ -550,6 +607,10 @@ button.nav-item {
   color: var(--os-primary);
 }
 
+#deploy-sandbox-button[hidden] {
+  display: none;
+}
+
 #deploy-sandbox-button.htmx-request {
   cursor: wait;
   opacity: 0.55;
@@ -560,7 +621,8 @@ button.nav-item {
   pointer-events: none;
 }
 
-.icon-button[data-live-state="paused"] {
+.icon-button[data-live-state="paused"],
+#details-pane-toggle[aria-pressed="true"] {
   border-color: var(--os-muted);
   color: var(--os-text);
   background: var(--os-active);
@@ -1025,6 +1087,626 @@ button.nav-item {
   margin-top: 1px;
 }
 
+.sandbox-detail-header {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(19rem, 26rem);
+  min-height: 82px;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 12px;
+  overflow: visible;
+  border-bottom: 1px solid var(--os-border-soft);
+  transition: grid-template-columns 0.2s ease, gap 0.2s ease;
+}
+
+.sandbox-detail-primary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-right: 12px;
+}
+
+.sandbox-detail-summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.sandbox-detail-summary .status-ring {
+  width: 16px;
+  height: 16px;
+}
+
+.sandbox-detail-summary h1 {
+  margin: 0;
+  color: var(--os-text);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.sandbox-detail-summary p {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--os-subtle);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.sandbox-detail-summary p > span:not(.metadata-separator) {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sandbox-detail-summary p svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+.sandbox-detail-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.sandbox-detail-action {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid var(--os-border);
+  border-radius: 7px;
+  color: var(--os-muted);
+  background: var(--os-panel);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.sandbox-detail-action:hover:not(:disabled) {
+  color: var(--os-text);
+  background: var(--os-hover);
+}
+
+.sandbox-detail-action:disabled {
+  color: var(--os-subtle);
+  opacity: 0.55;
+}
+
+.sandbox-detail-action[data-variant="danger"] {
+  color: var(--os-danger);
+}
+
+.sandbox-detail-action[data-variant="danger"]:hover {
+  border-color: color-mix(in srgb, var(--os-danger) 35%, var(--os-border));
+  background: color-mix(in srgb, var(--os-danger) 7%, var(--os-panel));
+}
+
+.sandbox-detail-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sandbox-actions-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.sandbox-actions-toggle {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--os-border);
+  border-radius: 7px;
+  color: var(--os-muted);
+  background: var(--os-panel);
+  place-items: center;
+}
+
+.sandbox-actions-toggle:hover,
+.sandbox-actions-toggle[aria-expanded="true"] {
+  color: var(--os-text);
+  background: var(--os-hover);
+}
+
+.sandbox-actions-toggle svg {
+  width: 15px;
+  height: 15px;
+}
+
+.sandbox-actions-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  display: grid;
+  min-width: 9rem;
+  padding: 6px;
+  border: 1px solid var(--os-border);
+  border-radius: 7px;
+  background: var(--os-panel);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 12%), 0 2px 8px rgb(0 0 0 / 6%);
+}
+
+.sandbox-actions-popover[hidden] {
+  display: none;
+}
+
+.sandbox-actions-menu-item {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--os-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+
+.sandbox-actions-menu-item:hover {
+  background: var(--os-hover);
+}
+
+.sandbox-actions-menu-item[data-variant="danger"] {
+  color: var(--os-danger);
+}
+
+.sandbox-actions-menu-item svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sandbox-detail-context {
+  display: flex;
+  align-items: center;
+}
+
+.sandbox-detail-context-header {
+  min-width: 0;
+  transition: opacity 0.15s ease, transform 0.2s ease, visibility 0s;
+}
+
+.sandbox-detail-context-sidebar {
+  display: none;
+}
+
+.sandbox-info-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.sandbox-info-toggle {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--os-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.sandbox-info-toggle:hover,
+.sandbox-info-toggle[aria-expanded="true"] {
+  color: var(--os-text);
+  background: var(--os-hover);
+}
+
+.sandbox-info-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sandbox-info-current-icon {
+  display: inline-flex;
+  color: var(--os-subtle);
+}
+
+.sandbox-info-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  display: grid;
+  min-width: 9rem;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--os-border);
+  border-radius: 7px;
+  background: var(--os-panel);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 12%), 0 2px 8px rgb(0 0 0 / 6%);
+}
+
+.sandbox-info-popover[hidden] {
+  display: none;
+}
+
+.sandbox-info-popover button {
+  display: flex;
+  min-height: 31px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--os-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+
+.sandbox-info-popover button:hover,
+.sandbox-info-popover button[aria-checked="true"] {
+  color: var(--os-text);
+  background: var(--os-hover);
+}
+
+.sandbox-info-popover button svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: var(--os-subtle);
+}
+
+[data-sandbox-info-content][hidden] {
+  display: none;
+}
+
+[data-sandbox-info-content].is-switching {
+  animation: sandbox-info-content-enter 0.18s ease-out;
+}
+
+@keyframes sandbox-info-content-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+#dashboard-content[data-details-collapsed="true"] .sandbox-detail-header,
+#dashboard-content[data-details-collapsed="true"] .sandbox-detail-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(0rem, 0rem);
+  gap: 0;
+}
+
+#dashboard-content[data-details-collapsed="true"] .sandbox-detail-sidebar,
+#dashboard-content[data-details-collapsed="true"] .sandbox-detail-context-header {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(10px);
+  transition: opacity 0.15s ease, transform 0.2s ease, visibility 0s 0.2s;
+}
+
+.sandbox-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(19rem, 26rem);
+  gap: 12px;
+  align-items: start;
+  padding: 12px 12px 16px;
+  transition: grid-template-columns 0.2s ease, grid-template-rows 0.2s ease, gap 0.2s ease;
+}
+
+.sandbox-terminal-panel {
+  overflow: hidden;
+  min-height: 34rem;
+  border: 1px solid var(--os-border);
+  border-radius: 6px;
+  background: var(--os-group);
+}
+
+.sandbox-detail-section h2 {
+  margin: 0;
+  color: var(--os-muted);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sandbox-terminal-stage {
+  position: relative;
+}
+
+.ghostty-terminal {
+  position: relative;
+  width: 100%;
+  height: 34rem;
+  min-height: 34rem;
+  overflow: hidden;
+  padding: 10px;
+  color: #d8dee9;
+  background: #111318;
+  caret-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.ghostty-terminal > div,
+.ghostty-terminal canvas {
+  max-width: 100%;
+}
+
+.sandbox-terminal-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 24px;
+  color: #d8dee9;
+  background: rgb(17 19 24 / 88%);
+  backdrop-filter: blur(2px);
+  text-align: center;
+}
+
+.sandbox-terminal-overlay[hidden] {
+  display: none;
+}
+
+.sandbox-terminal-overlay > svg {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 12px;
+  color: #8b93a7;
+}
+
+.sandbox-terminal-overlay strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.sandbox-terminal-overlay p {
+  margin: 5px 0 14px;
+  color: #9ba3b7;
+  font-size: 12px;
+}
+
+.sandbox-terminal-overlay strong + button {
+  margin-top: 14px;
+}
+
+.sandbox-terminal-overlay button {
+  min-height: 32px;
+  padding: 0 13px;
+  border: 1px solid #596174;
+  border-radius: 7px;
+  color: #f1f5f9;
+  background: #313746;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.sandbox-terminal-overlay button:hover:not(:disabled) {
+  background: #3b4354;
+}
+
+.sandbox-terminal-overlay button:disabled {
+  opacity: 0.5;
+}
+
+.sandbox-detail-sidebar {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  overflow: hidden;
+  transition: opacity 0.15s ease, transform 0.2s ease, visibility 0s;
+}
+
+.sandbox-live-stats {
+  transition: opacity 0.15s ease;
+}
+
+.sandbox-live-stats.htmx-request {
+  opacity: 0.62;
+}
+
+.sandbox-stats-error {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+  color: var(--os-danger);
+  font-size: 11px;
+}
+
+.sandbox-stats-error svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+
+.sandbox-detail-section h2 {
+  margin-bottom: 10px;
+}
+
+.sandbox-metadata-list {
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid var(--os-border-soft);
+  border-radius: 6px;
+}
+
+.sandbox-metadata-list > div {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 11px;
+  border-bottom: 1px solid var(--os-border-soft);
+}
+
+.sandbox-metadata-list > div:last-child {
+  border-bottom: 0;
+}
+
+.sandbox-metadata-list dt {
+  color: var(--os-subtle);
+  font-size: 11px;
+  font-weight: 560;
+}
+
+.sandbox-metadata-list dd {
+  overflow: hidden;
+  margin: 0;
+  color: var(--os-text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sandbox-info-properties {
+  display: grid;
+  gap: 18px;
+  padding: 6px 0 6px 8px;
+}
+
+.sandbox-info-property {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.sandbox-info-property-icon {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  color: var(--os-muted);
+  place-items: center;
+}
+
+.sandbox-info-property[data-level="critical"] .sandbox-info-property-icon {
+  color: var(--os-danger);
+}
+
+.sandbox-info-property-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+.sandbox-info-property-body {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  padding-top: 2px;
+}
+
+.sandbox-info-property-value {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.sandbox-info-property-value > span {
+  color: var(--os-muted);
+}
+
+.sandbox-info-property-value > strong {
+  overflow: hidden;
+  color: var(--os-muted);
+  font-weight: 560;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sandbox-detail-properties {
+  gap: 16px;
+}
+
+.sandbox-detail-property .sandbox-info-property-body {
+  gap: 2px;
+  padding-top: 1px;
+}
+
+.sandbox-detail-property .sandbox-info-property-icon,
+.sandbox-detail-property-label {
+  color: var(--os-subtle);
+}
+
+.sandbox-detail-property-label {
+  font-size: 12px;
+  font-weight: 520;
+}
+
+.sandbox-detail-property-value {
+  overflow: hidden;
+  color: var(--os-text);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sandbox-usage-meter {
+  --usage-color: var(--os-muted);
+  width: 100%;
+  height: 5px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  appearance: none;
+  color: var(--usage-color);
+  background: var(--os-group);
+}
+
+.sandbox-usage-meter[data-level="critical"] {
+  --usage-color: var(--os-danger);
+}
+
+.sandbox-usage-meter::-webkit-progress-bar {
+  border-radius: 999px;
+  background: var(--os-group);
+}
+
+.sandbox-usage-meter::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--usage-color);
+}
+
+.sandbox-usage-meter::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--usage-color);
+}
+
+.copyable-value {
+  cursor: copy;
+  user-select: all;
+}
+
 .state-groups {
   min-height: calc(100vh - 152px);
 }
@@ -1426,8 +2108,8 @@ button.nav-item {
   }
 
   html[data-sidebar="collapsed"] .nav-item {
-    justify-content: center;
-    padding: 0;
+    justify-content: flex-start;
+    padding: 0 10px;
   }
 
   html[data-sidebar="collapsed"] .nav-menu-chevron {
@@ -1467,7 +2149,8 @@ button.nav-item {
   }
 
   .content-panel {
-    min-height: 100vh;
+    height: 100vh;
+    min-height: 0;
     border-right: 0;
     border-left: 0;
     border-radius: 0;
@@ -1483,6 +2166,33 @@ button.nav-item {
 
   .sandbox-delete-button {
     opacity: 1;
+  }
+
+  .sandbox-detail-header,
+  .sandbox-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sandbox-detail-layout {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .sandbox-detail-context-header {
+    display: none;
+  }
+
+  .sandbox-detail-context-sidebar {
+    display: flex;
+  }
+
+  #dashboard-content[data-details-collapsed="true"] .sandbox-detail-header,
+  #dashboard-content[data-details-collapsed="true"] .sandbox-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  #dashboard-content[data-details-collapsed="true"] .sandbox-detail-layout {
+    grid-template-rows: auto minmax(0, 0fr);
+    gap: 0;
   }
 
 }
@@ -1539,6 +2249,34 @@ button.nav-item {
   .sandbox-runtime {
     width: 100%;
     flex: 1 0 100%;
+  }
+
+  .sandbox-detail-header {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .sandbox-detail-primary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .sandbox-detail-layout {
+    padding: 12px;
+  }
+
+  .sandbox-terminal-panel {
+    min-height: 24rem;
+  }
+
+  .ghostty-terminal {
+    height: 24rem;
+    min-height: 24rem;
+  }
+
+  .sandbox-metadata-list > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 
 }

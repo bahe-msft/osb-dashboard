@@ -1,0 +1,40 @@
+<div
+  id="sandbox-live-stats"
+  class="sandbox-live-stats"
+  data-stats-loaded="true"
+  hx-get="/dashboard/sandboxes/{{urlquery .SandboxID}}/stats"
+  hx-trigger="statsRefresh, every 5s [window.osbSandboxInfoPanel === 'stats' && window.osbLiveUpdatesEnabled !== false && document.visibilityState === 'visible']"
+  hx-swap="outerHTML"
+  hx-indicator="this"
+  aria-live="polite"
+>
+  {{if .Error}}
+    <div class="sandbox-stats-error" role="status">
+      <i data-lucide="circle-alert" aria-hidden="true"></i>
+      <span>{{.Error}}</span>
+    </div>
+  {{end}}
+  <div class="sandbox-info-properties">
+    <div class="sandbox-info-property" data-level="{{.CPULevel}}">
+      <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="cpu"></i></span>
+      <div class="sandbox-info-property-body">
+        <div class="sandbox-info-property-value"><span>CPU usage</span><strong>{{.CPU}}</strong></div>
+        <progress class="sandbox-usage-meter" data-level="{{.CPULevel}}" value="{{.CPUPercent}}" max="100" aria-label="CPU utilization {{.CPU}}"></progress>
+      </div>
+    </div>
+    <div class="sandbox-info-property" data-level="{{.LoadLevel}}">
+      <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="gauge"></i></span>
+      <div class="sandbox-info-property-body">
+        <div class="sandbox-info-property-value"><span>Load (1m)</span><strong>{{.Load}}</strong></div>
+        <progress class="sandbox-usage-meter" data-level="{{.LoadLevel}}" value="{{.LoadPercent}}" max="100" aria-label="One-minute CPU load {{.Load}}"></progress>
+      </div>
+    </div>
+    <div class="sandbox-info-property" data-level="{{.MemoryLevel}}">
+      <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="memory-stick"></i></span>
+      <div class="sandbox-info-property-body">
+        <div class="sandbox-info-property-value"><span>Memory</span><strong>{{.Memory}}</strong></div>
+        {{if .MemoryLimited}}<progress class="sandbox-usage-meter" data-level="{{.MemoryLevel}}" value="{{.MemoryPercent}}" max="100" aria-label="Memory utilization {{.MemoryPercent}} percent"></progress>{{end}}
+      </div>
+    </div>
+  </div>
+</div>

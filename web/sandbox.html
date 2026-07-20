@@ -1,0 +1,209 @@
+<title>{{.ID}} · OpenSandbox Dashboard</title>
+<section
+  id="dashboard-content"
+  data-page="detail"
+  hx-get="/dashboard/sandboxes/{{urlquery .ID}}/fragment"
+  hx-trigger="every 5s [document.visibilityState === 'visible' && window.osbLiveUpdatesEnabled !== false && window.osbTerminalActive !== true && window.osbSandboxInfoPanel !== 'stats']"
+  hx-swap="outerHTML"
+  aria-live="polite"
+>
+  <div id="navigation-title" class="topbar-breadcrumb" hx-swap-oob="true">
+    <a href="/" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/">Sandboxes</a>
+    <span class="topbar-breadcrumb-sep">/</span>
+    <span class="topbar-breadcrumb-current">{{.ID}}</span>
+  </div>
+  <span id="page-toolbar-action" class="toolbar-action" hx-swap-oob="true">
+    <button id="details-pane-toggle" class="icon-button" type="button" aria-controls="sandbox-detail-sidebar" aria-pressed="false" aria-label="Hide details pane" title="Hide details pane">
+      <i data-lucide="panel-right-close"></i>
+    </button>
+  </span>
+
+  {{if .Error}}
+    <div class="dashboard-error" role="alert">
+      <i data-lucide="circle-alert" aria-hidden="true"></i>
+      <span>{{.Error}}</span>
+    </div>
+  {{end}}
+
+  {{if .State}}
+    <header class="sandbox-detail-header">
+      <div class="sandbox-detail-primary">
+        <div class="sandbox-detail-summary">
+          <span class="status-ring" data-status="{{.State}}" aria-hidden="true"></span>
+          <div>
+            <h1>{{.StateLabel}}</h1>
+            <p>
+              <span><i data-lucide="disc" aria-hidden="true"></i>{{.Image}}</span>
+              <span class="metadata-separator" aria-hidden="true">·</span>
+              <span><i data-lucide="cpu" aria-hidden="true"></i>{{.Resources}}</span>
+            </p>
+          </div>
+        </div>
+        <div class="sandbox-detail-actions">
+          <button class="sandbox-detail-action" type="button" disabled title="Pause support is coming soon">
+            <i data-lucide="pause" aria-hidden="true"></i>
+            Pause
+          </button>
+          <span class="sandbox-actions-menu">
+            <button class="sandbox-actions-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More sandbox actions" title="More sandbox actions" data-sandbox-actions-toggle>
+              <i data-lucide="ellipsis-vertical" aria-hidden="true"></i>
+            </button>
+            <span class="sandbox-actions-popover" role="menu" hidden>
+              <button
+                class="sandbox-actions-menu-item"
+                data-variant="danger"
+                type="button"
+                role="menuitem"
+                hx-delete="/dashboard/sandboxes/{{urlquery .ID}}"
+                hx-target="#dashboard-content"
+                hx-swap="outerHTML"
+                hx-push-url="/"
+                hx-indicator="this"
+                hx-disabled-elt="this"
+                hx-confirm="Deleting sandbox {{.ID}} cannot be undone."
+                data-confirm-title="Delete sandbox?"
+                data-confirm-label="Delete"
+                data-confirm-variant="danger"
+              >
+                <i data-lucide="circle-x" aria-hidden="true"></i>
+                Delete
+              </button>
+            </span>
+          </span>
+        </div>
+      </div>
+      <div class="sandbox-detail-context sandbox-detail-context-header">
+        <span class="sandbox-info-menu">
+          <button id="sandbox-info-toggle" class="sandbox-info-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="sandbox-info-popover" data-sandbox-info-toggle>
+            <span class="sandbox-info-current-icon" data-sandbox-info-icon aria-hidden="true"><i data-lucide="info"></i></span>
+            <span data-sandbox-info-label>Details</span>
+            <i data-lucide="chevron-down" aria-hidden="true"></i>
+          </button>
+          <span id="sandbox-info-popover" class="sandbox-info-popover" role="menu" hidden>
+            <button type="button" role="menuitemradio" aria-checked="true" data-sandbox-info-panel="details" data-sandbox-info-panel-icon="info"><i data-lucide="info" aria-hidden="true"></i><span>Details</span></button>
+            <button type="button" role="menuitemradio" aria-checked="false" data-sandbox-info-panel="stats" data-sandbox-info-panel-icon="square-activity"><i data-lucide="square-activity" aria-hidden="true"></i><span>Stats</span></button>
+            {{if .Metadata}}<button type="button" role="menuitemradio" aria-checked="false" data-sandbox-info-panel="metadata" data-sandbox-info-panel-icon="braces"><i data-lucide="braces" aria-hidden="true"></i><span>Metadata</span></button>{{end}}
+          </span>
+        </span>
+      </div>
+    </header>
+
+    <div class="sandbox-detail-layout">
+      <section class="sandbox-terminal-panel" aria-label="Sandbox terminal">
+        <div class="sandbox-terminal-stage">
+          <div id="sandbox-terminal" class="ghostty-terminal" data-sandbox-id="{{.ID}}" data-terminal-enabled="{{if eq .State "running"}}true{{else}}false{{end}}" aria-label="Sandbox terminal"></div>
+          <div class="sandbox-terminal-overlay" data-terminal-overlay>
+            <i data-lucide="terminal-square" aria-hidden="true"></i>
+            {{if eq .State "running"}}
+              <strong data-terminal-overlay-title>Terminal disconnected</strong>
+              <button type="button" data-terminal-connect>Connect</button>
+            {{else}}
+              <strong data-terminal-overlay-title>Terminal unavailable</strong>
+              <p data-terminal-overlay-message>The sandbox must be running before a terminal can be opened.</p>
+            {{end}}
+          </div>
+        </div>
+      </section>
+
+      <aside id="sandbox-detail-sidebar" class="sandbox-detail-sidebar">
+        <div class="sandbox-detail-context sandbox-detail-context-sidebar">
+          <span class="sandbox-info-menu">
+            <button id="sandbox-info-toggle-narrow" class="sandbox-info-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="sandbox-info-popover-narrow" data-sandbox-info-toggle>
+              <span class="sandbox-info-current-icon" data-sandbox-info-icon aria-hidden="true"><i data-lucide="info"></i></span>
+              <span data-sandbox-info-label>Details</span>
+              <i data-lucide="chevron-down" aria-hidden="true"></i>
+            </button>
+            <span id="sandbox-info-popover-narrow" class="sandbox-info-popover" role="menu" hidden>
+              <button type="button" role="menuitemradio" aria-checked="true" data-sandbox-info-panel="details" data-sandbox-info-panel-icon="info"><i data-lucide="info" aria-hidden="true"></i><span>Details</span></button>
+              <button type="button" role="menuitemradio" aria-checked="false" data-sandbox-info-panel="stats" data-sandbox-info-panel-icon="square-activity"><i data-lucide="square-activity" aria-hidden="true"></i><span>Stats</span></button>
+              {{if .Metadata}}<button type="button" role="menuitemradio" aria-checked="false" data-sandbox-info-panel="metadata" data-sandbox-info-panel-icon="braces"><i data-lucide="braces" aria-hidden="true"></i><span>Metadata</span></button>{{end}}
+            </span>
+          </span>
+        </div>
+
+        <section class="sandbox-detail-section" data-sandbox-info-content="details" aria-label="Details">
+          <div class="sandbox-info-properties sandbox-detail-properties">
+            <div class="sandbox-info-property sandbox-detail-property">
+              <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="calendar-clock"></i></span>
+              <div class="sandbox-info-property-body">
+                <span class="sandbox-detail-property-label">Created</span>
+                <strong class="sandbox-detail-property-value"><time datetime="{{.CreatedAtISO}}" data-created-time data-no-prefix>{{.CreatedAtFallback}}</time></strong>
+              </div>
+            </div>
+            <div class="sandbox-info-property sandbox-detail-property">
+              <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="boxes"></i></span>
+              <div class="sandbox-info-property-body">
+                <span class="sandbox-detail-property-label">Namespace</span>
+                <strong class="sandbox-detail-property-value copyable-value">{{.Namespace}}</strong>
+              </div>
+            </div>
+            <div class="sandbox-info-property sandbox-detail-property">
+              <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="box"></i></span>
+              <div class="sandbox-info-property-body">
+                <span class="sandbox-detail-property-label">Pod</span>
+                <strong class="sandbox-detail-property-value copyable-value">{{.PodName}}</strong>
+              </div>
+            </div>
+            <div class="sandbox-info-property sandbox-detail-property">
+              <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="waypoints"></i></span>
+              <div class="sandbox-info-property-body">
+                <span class="sandbox-detail-property-label">Discovered via</span>
+                <strong class="sandbox-detail-property-value">{{.Sources}}</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="sandbox-detail-section" data-sandbox-info-content="stats" aria-label="Stats" hidden>
+          <div
+            id="sandbox-live-stats"
+            class="sandbox-live-stats"
+            data-stats-loaded="false"
+            hx-get="/dashboard/sandboxes/{{urlquery .ID}}/stats"
+            hx-trigger="statsRefresh, every 5s [window.osbSandboxInfoPanel === 'stats' && window.osbLiveUpdatesEnabled !== false && document.visibilityState === 'visible']"
+            hx-swap="outerHTML"
+            hx-indicator="this"
+            aria-live="polite"
+          >
+            <div class="sandbox-info-properties">
+              <div class="sandbox-info-property">
+                <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="cpu"></i></span>
+                <div class="sandbox-info-property-body">
+                  <div class="sandbox-info-property-value"><span>CPU usage</span><strong>—</strong></div>
+                  <progress class="sandbox-usage-meter" value="0" max="100" aria-label="CPU utilization loading"></progress>
+                </div>
+              </div>
+              <div class="sandbox-info-property">
+                <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="gauge"></i></span>
+                <div class="sandbox-info-property-body">
+                  <div class="sandbox-info-property-value"><span>Load (1m)</span><strong>—</strong></div>
+                  <progress class="sandbox-usage-meter" value="0" max="100" aria-label="CPU load loading"></progress>
+                </div>
+              </div>
+              <div class="sandbox-info-property">
+                <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="memory-stick"></i></span>
+                <div class="sandbox-info-property-body">
+                  <div class="sandbox-info-property-value"><span>Memory</span><strong>—</strong></div>
+                  <progress class="sandbox-usage-meter" value="0" max="100" aria-label="Memory utilization loading"></progress>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {{if .Metadata}}
+          <section class="sandbox-detail-section" data-sandbox-info-content="metadata" aria-label="Metadata" hidden>
+            <dl class="sandbox-metadata-list">
+              {{range .Metadata}}
+                <div>
+                  <dt>{{.Label}}</dt>
+                  <dd class="copyable-value">{{.Value}}</dd>
+                </div>
+              {{end}}
+            </dl>
+          </section>
+        {{end}}
+      </aside>
+    </div>
+  {{end}}
+</section>

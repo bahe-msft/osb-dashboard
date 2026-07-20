@@ -12,3 +12,7 @@ result-*
 .playwright/*
 !.playwright/cli.config.json
 .playwright-cli/
+
+# Downloaded frontend dependencies (keep licenses tracked)
+web/assets/vendor/ghostty-web/*
+!web/assets/vendor/ghostty-web/LICENSE

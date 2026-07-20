@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -36,10 +37,29 @@ type Writer interface {
 	DeleteSandbox(context.Context, Sandbox) error
 }
 
-// Client combines read and write operations with lifecycle cleanup.
+// Terminal opens an interactive PTY WebSocket through OpenSandbox.
+type Terminal interface {
+	OpenPTY(context.Context, string) (*websocket.Conn, error)
+}
+
+// CommandRunner executes a command inside a sandbox through OpenSandbox.
+type CommandRunner interface {
+	RunCommand(context.Context, string, string) (CommandResult, error)
+}
+
+// CommandResult contains the collected output and exit status of a command.
+type CommandResult struct {
+	Stdout   string
+	Stderr   string
+	ExitCode int
+}
+
+// Client combines read, write, terminal, and command operations with lifecycle cleanup.
 type Client interface {
 	Reader
 	Writer
+	Terminal
+	CommandRunner
 	Close() error
 }
 

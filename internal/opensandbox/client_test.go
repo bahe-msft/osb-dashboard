@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/coder/websocket"
 )
 
 func TestReadAndWriteOperations(t *testing.T) {
@@ -303,6 +306,83 @@ users:
 	defer client.Close()
 	if _, err := client.ListSandboxes(context.Background()); err != nil {
 		t.Fatalf("ListSandboxes() error = %v", err)
+	}
+}
+
+func TestTerminalOperations(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/namespaces/control/secrets/api-key":
+			_ = json.NewEncoder(w).Encode(kubeSecret{Data: map[string]string{
+				"token": base64.StdEncoding.EncodeToString([]byte("test-key")),
+			}})
+		case "/api/v1/namespaces/control/services/http:lifecycle:http/proxy/sandboxes/sandbox-1/proxy/44772/pty":
+			var request map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Errorf("decode PTY request: %v", err)
+			}
+			if !strings.Contains(request["command"], "TERM=xterm-256color") {
+				t.Errorf("PTY command = %q", request["command"])
+			}
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]string{"session_id": "pty-1"})
+		case "/api/v1/namespaces/control/services/http:lifecycle:http/proxy/sandboxes/sandbox-1/proxy/44772/pty/pty-1/ws":
+			if got := r.Header.Get(apiKeyHeader); got != "test-key" {
+				t.Errorf("API key header = %q", got)
+			}
+			connection, err := websocket.Accept(w, r, nil)
+			if err != nil {
+				t.Errorf("accept WebSocket: %v", err)
+				return
+			}
+			defer connection.Close(websocket.StatusNormalClosure, "")
+			_ = connection.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connected","mode":"pty"}`))
+		case "/api/v1/namespaces/control/services/http:lifecycle:http/proxy/sandboxes/sandbox-1/proxy/44772/command":
+			var request map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Errorf("decode command request: %v", err)
+			}
+			if request["command"] != "echo stats" {
+				t.Errorf("command = %q", request["command"])
+			}
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, _ = io.WriteString(w, "event: stdout\ndata: cpu=12.5\\n\n\nevent: result\ndata: {\"exit_code\":0}\n\n")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client, err := newClient(server.URL, server.Client(), Options{
+		Namespace:        "control",
+		ServiceName:      "lifecycle",
+		ServicePort:      "http",
+		APIKeySecretName: "api-key",
+		APIKeySecretKey:  "token",
+	}, nil)
+	if err != nil {
+		t.Fatalf("newClient() error = %v", err)
+	}
+	connection, err := client.OpenPTY(context.Background(), "sandbox-1")
+	if err != nil {
+		t.Fatalf("OpenPTY() error = %v", err)
+	}
+	defer connection.Close(websocket.StatusNormalClosure, "")
+
+	messageType, message, err := connection.Read(context.Background())
+	if err != nil {
+		t.Fatalf("read PTY WebSocket: %v", err)
+	}
+	if messageType != websocket.MessageText || !strings.Contains(string(message), `"connected"`) {
+		t.Errorf("PTY message = %q", message)
+	}
+
+	result, err := client.RunCommand(context.Background(), "sandbox-1", "echo stats")
+	if err != nil {
+		t.Fatalf("RunCommand() error = %v", err)
+	}
+	if result.Stdout != "cpu=12.5\\n\n" || result.ExitCode != 0 {
+		t.Errorf("RunCommand() = %#v", result)
 	}
 }
 

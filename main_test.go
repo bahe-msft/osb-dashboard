@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bahe-msft/osb-dashboard/internal/opensandbox"
+	"github.com/coder/websocket"
 )
 
 type fakeSandboxService struct {
@@ -33,6 +34,24 @@ func (service *fakeSandboxService) CreateSandbox(_ context.Context, request open
 	}
 	service.sandboxes = append(service.sandboxes, sandbox)
 	return sandbox, nil
+}
+
+func (service *fakeSandboxService) OpenPTY(context.Context, string) (*websocket.Conn, error) {
+	return nil, nil
+}
+
+func (service *fakeSandboxService) RunCommand(context.Context, string, string) (opensandbox.CommandResult, error) {
+	return opensandbox.CommandResult{Stdout: strings.Join([]string{
+		"cpu_unit=us",
+		"cpu_start=100000",
+		"cpu_end=162500",
+		"cpu_quota=200000",
+		"cpu_period=100000",
+		"cpu_count=2",
+		"load_1=0.50",
+		"memory_current=536870912",
+		"memory_max=4294967296",
+	}, "\n")}, nil
 }
 
 func (service *fakeSandboxService) DeleteSandbox(_ context.Context, sandbox opensandbox.Sandbox) error {
@@ -131,6 +150,26 @@ func TestCreateSandboxRequestRejectsInvalidResourcePreset(t *testing.T) {
 	}
 }
 
+func TestSandboxDetailFromSandboxHidesInternalMetadata(t *testing.T) {
+	data := sandboxDetailFromSandbox(opensandbox.Sandbox{
+		ID:      "sandbox-1",
+		State:   "Running",
+		Sources: []string{opensandbox.SourceLifecycle, opensandbox.SourceBatchSandbox},
+		Metadata: map[string]string{
+			"createdBy":                "osb-dashboard",
+			"osb-dashboard/request-id": "request-id",
+			"team":                     "platform",
+		},
+	})
+
+	if data.Sources != "Lifecycle API + BatchSandbox" {
+		t.Errorf("Sources = %q", data.Sources)
+	}
+	if len(data.Metadata) != 1 || data.Metadata[0].Label != "team" || data.Metadata[0].Value != "platform" {
+		t.Errorf("Metadata = %#v", data.Metadata)
+	}
+}
+
 func TestFormatSandboxResources(t *testing.T) {
 	tests := []struct {
 		cpu    string
@@ -205,6 +244,8 @@ func TestRoutes(t *testing.T) {
 		"/tmp/test-kubeconfig",
 		service,
 		service,
+		service,
+		service,
 		"python:3.12-slim",
 		context.Background(),
 	)
@@ -243,6 +284,28 @@ func TestRoutes(t *testing.T) {
 			contains:    "sandbox-created",
 		},
 		{
+			name:           "sandbox detail page",
+			method:         http.MethodGet,
+			path:           "/dashboard/sandboxes/sandbox-created",
+			contentType:    "text/html; charset=utf-8",
+			contains:       "details-pane-toggle",
+			doesNotContain: `id="deploy-sandbox-button"`,
+		},
+		{
+			name:        "sandbox detail fragment",
+			method:      http.MethodGet,
+			path:        "/dashboard/sandboxes/sandbox-created/fragment",
+			contentType: "text/html; charset=utf-8",
+			contains:    "sandbox-terminal-stage",
+		},
+		{
+			name:        "sandbox live stats",
+			method:      http.MethodGet,
+			path:        "/dashboard/sandboxes/sandbox-created/stats",
+			contentType: "text/html; charset=utf-8",
+			contains:    "12.5%",
+		},
+		{
 			name:        "delete sandbox",
 			method:      http.MethodDelete,
 			path:        "/dashboard/sandboxes/sandbox-created",
@@ -271,7 +334,7 @@ func TestRoutes(t *testing.T) {
 			response := httptest.NewRecorder()
 
 			app.routes().ServeHTTP(response, request)
-			if test.method == http.MethodPost {
+			if test.path == "/dashboard/sandboxes" {
 				app.background.Wait()
 			}
 
@@ -281,7 +344,7 @@ func TestRoutes(t *testing.T) {
 			if result.StatusCode != http.StatusOK {
 				t.Fatalf("status = %d, want %d", result.StatusCode, http.StatusOK)
 			}
-			if test.method == http.MethodPost {
+			if test.path == "/dashboard/sandboxes" {
 				if got := result.Header.Get("HX-Trigger"); got != "sandboxCreateAccepted" {
 					t.Errorf("HX-Trigger = %q, want %q", got, "sandboxCreateAccepted")
 				}

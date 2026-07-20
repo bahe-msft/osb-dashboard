@@ -1,3 +1,20 @@
+<title>OpenSandbox Dashboard</title>
+<section
+  id="dashboard-content"
+  data-page="list"
+  hx-get="/dashboard/overview"
+  hx-trigger="every 5s [document.visibilityState === 'visible' && window.osbLiveUpdatesEnabled !== false]"
+  hx-swap="outerHTML"
+  aria-live="polite"
+>
+<div id="navigation-title" class="topbar-breadcrumb" hx-swap-oob="true">
+  <span class="topbar-breadcrumb-current">Sandboxes</span>
+</div>
+<span id="page-toolbar-action" class="toolbar-action" hx-swap-oob="true">
+  <button id="deploy-sandbox-button" class="icon-button sandbox-create-control" type="button" aria-label="Deploy a new sandbox" title="Deploy a new sandbox" data-open-create-modal>
+    <i data-lucide="plus"></i>
+  </button>
+</span>
 <span id="sandbox-nav-count" class="nav-item-count" hx-swap-oob="true">{{.Total}}</span>
 
 <div class="filter-tabs" aria-label="Filter sandboxes by state">
@@ -34,7 +51,17 @@
 
       <div class="sandbox-list">
         {{range .Sandboxes}}
-          <article class="sandbox-row">
+          <article
+            class="sandbox-row"
+            role="link"
+            tabindex="0"
+            aria-label="Open sandbox {{.Name}}"
+            hx-get="/dashboard/sandboxes/{{urlquery .ID}}/fragment"
+            hx-target="#dashboard-content"
+            hx-swap="outerHTML"
+            hx-push-url="/dashboard/sandboxes/{{urlquery .ID}}"
+            hx-trigger="click[!event.target.closest('.sandbox-delete-button')]"
+          >
             <span class="status-ring" data-status="{{.State}}" aria-hidden="true"></span>
             <div class="sandbox-headline">
               <span class="sandbox-name">{{.Name}}</span>
@@ -54,8 +81,8 @@
                 aria-label="Delete sandbox {{.Name}}"
                 title="Delete sandbox"
                 hx-delete="/dashboard/sandboxes/{{urlquery .ID}}"
-                hx-target="#overview"
-                hx-swap="innerHTML"
+                hx-target="#dashboard-content"
+                hx-swap="outerHTML"
                 hx-indicator="this"
                 hx-disabled-elt="this"
                 hx-confirm="Deleting sandbox {{.ID}} cannot be undone."
@@ -94,3 +121,4 @@
     </div>
   {{end}}
 </div>
+</section>
