@@ -35,6 +35,8 @@ type Reader interface {
 type Writer interface {
 	CreateSandbox(context.Context, CreateSandboxRequest) (Sandbox, error)
 	DeleteSandbox(context.Context, Sandbox) error
+	PauseSandbox(context.Context, string) error
+	ResumeSandbox(context.Context, string) error
 }
 
 // Terminal opens an interactive PTY WebSocket through OpenSandbox.

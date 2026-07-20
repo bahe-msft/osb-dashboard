@@ -30,6 +30,7 @@ port="${OSB_E2E_PORT:-$((20000 + RANDOM % 20000))}"
 address="127.0.0.1:$port"
 base_url="http://$address"
 sandbox_image="${OSB_E2E_SANDBOX_IMAGE:-python:3.12-slim}"
+keep_sandbox="${OSB_E2E_KEEP_SANDBOX:-0}"
 viewport_width="${OSB_E2E_VIEWPORT_WIDTH:-1600}"
 viewport_height="${OSB_E2E_VIEWPORT_HEIGHT:-1000}"
 session="osb-e2e-$$"
@@ -146,7 +147,7 @@ if [[ "$ready" -ne 1 ]]; then
   exit 1
 fi
 
-start_url="$base_url/?e2eRun=$run_id&e2eImage=$sandbox_image"
+start_url="$base_url/?e2eRun=$run_id&e2eImage=$sandbox_image&e2eKeepSandbox=$keep_sandbox"
 printf 'Opening Microsoft Edge...\n'
 pw open "$start_url" --browser msedge --config "$run_dir/cli.config.json" >"$run_dir/browser.log" 2>&1
 browser_open=1

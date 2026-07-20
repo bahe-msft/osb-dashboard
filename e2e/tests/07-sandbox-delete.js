@@ -4,6 +4,18 @@ async page => {
     sandboxID: localStorage.getItem('osb-e2e-sandbox-id'),
   }));
   if (!config.sandboxID) { throw new Error('created sandbox ID is missing'); }
+  const keepSandbox = await page.evaluate(() => localStorage.getItem('osb-e2e-keep-sandbox') === '1');
+  if (keepSandbox) {
+    await page.screenshot({ path: `.playwright/e2e/${config.runID}/suite-complete-running.png`, fullPage: true });
+    return {
+      category: 'Sandbox lifecycle',
+      passed: 0,
+      skipped: 1,
+      sandboxID: config.sandboxID,
+      reason: 'OSB_E2E_KEEP_SANDBOX requested; sandbox left running',
+      tests: [],
+    };
+  }
 
   async function waitFor(description, check, timeout = 60_000) {
     const deadline = Date.now() + timeout;

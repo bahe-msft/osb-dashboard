@@ -54,6 +54,12 @@ func TestReadAndWriteOperations(t *testing.T) {
 				Status:    apiSandboxStatus{State: "Pending"},
 				CreatedAt: time.Date(2026, time.July, 19, 12, 1, 0, 0, time.UTC),
 			})
+		case r.URL.Path == "/api/v1/namespaces/test/services/http:lifecycle:http/proxy/sandboxes/sandbox-2/pause" && r.Method == http.MethodPost:
+			assertAPIKey(t, r)
+			w.WriteHeader(http.StatusNoContent)
+		case r.URL.Path == "/api/v1/namespaces/test/services/http:lifecycle:http/proxy/sandboxes/sandbox-2/resume" && r.Method == http.MethodPost:
+			assertAPIKey(t, r)
+			w.WriteHeader(http.StatusAccepted)
 		case r.URL.Path == "/api/v1/namespaces/test/services/http:lifecycle:http/proxy/sandboxes/sandbox-2" && r.Method == http.MethodDelete:
 			assertAPIKey(t, r)
 			w.WriteHeader(http.StatusNoContent)
@@ -98,6 +104,12 @@ func TestReadAndWriteOperations(t *testing.T) {
 	}
 	if created.ID != "sandbox-2" || created.State != "Pending" {
 		t.Fatalf("CreateSandbox() = %#v", created)
+	}
+	if err := writer.PauseSandbox(context.Background(), created.ID); err != nil {
+		t.Fatalf("PauseSandbox() error = %v", err)
+	}
+	if err := writer.ResumeSandbox(context.Background(), created.ID); err != nil {
+		t.Fatalf("ResumeSandbox() error = %v", err)
 	}
 	if err := writer.DeleteSandbox(context.Background(), created); err != nil {
 		t.Fatalf("DeleteSandbox() error = %v", err)

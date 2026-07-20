@@ -222,6 +222,23 @@ document.addEventListener('DOMContentLoaded', function () {
     dismissModal(createSandboxModal, 'accepted');
   });
 
+  document.body.addEventListener('htmx:beforeRequest', function (event) {
+    var action = event.detail.elt.closest('[data-sandbox-lifecycle-action]');
+    if (!action) { return; }
+    window.osbSandboxInfoPanel = 'details';
+    window.osbLifecycleActionActive = true;
+    window.osbTerminalActive = false;
+    if (window.osbTerminalSocket) {
+      window.osbTerminalSocket.close(1000, 'Sandbox state is changing');
+      window.osbTerminalSocket = null;
+    }
+  });
+
+  document.body.addEventListener('sandboxStateChanged', function () {
+    window.osbLifecycleActionActive = false;
+    window.setTimeout(window.refreshDashboard, 1500);
+  });
+
   document.body.addEventListener('htmx:confirm', function (event) {
     if (!event.detail.question) { return; }
     event.preventDefault();
@@ -552,7 +569,7 @@ document.addEventListener('DOMContentLoaded', function () {
   };
 
   window.refreshDashboard = function () {
-    if (document.visibilityState !== 'visible' || window.osbLiveUpdatesEnabled === false || !window.htmx) { return; }
+    if (document.visibilityState !== 'visible' || window.osbLiveUpdatesEnabled === false || window.osbLifecycleActionActive === true || !window.htmx) { return; }
     if (window.osbSandboxInfoPanel === 'stats') {
       var stats = document.getElementById('sandbox-live-stats');
       if (stats) { htmx.trigger(stats, 'statsRefresh'); }
@@ -695,6 +712,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 document.body.addEventListener('htmx:afterSwap', function () {
+  if (window.osbLifecycleActionActive) { window.osbLifecycleActionActive = false; }
   if (window.lucide) { lucide.createIcons(); }
   if (window.applySandboxFilter) { window.applySandboxFilter(); }
   if (window.localizeSandboxTimes) { window.localizeSandboxTimes(); }

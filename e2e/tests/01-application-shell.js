@@ -5,12 +5,14 @@ async page => {
       baseURL: url.origin,
       runID: url.searchParams.get('e2eRun') || `manual-${Date.now()}`,
       image: url.searchParams.get('e2eImage') || 'python:3.12-slim',
+      keepSandbox: url.searchParams.get('e2eKeepSandbox') === '1',
     };
   });
   await page.evaluate(config => {
     localStorage.clear();
     localStorage.setItem('osb-e2e-run-id', config.runID);
     localStorage.setItem('osb-e2e-image', config.image);
+    localStorage.setItem('osb-e2e-keep-sandbox', config.keepSandbox ? '1' : '0');
   }, current);
   await page.reload();
 

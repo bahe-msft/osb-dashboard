@@ -41,10 +41,54 @@
           </div>
         </div>
         <div class="sandbox-detail-actions">
-          <button class="sandbox-detail-action" type="button" disabled title="Pause support is coming soon">
-            <i data-lucide="pause" aria-hidden="true"></i>
-            Pause
-          </button>
+          {{if and (eq .State "running") .LifecycleManaged}}
+            <button
+              class="sandbox-detail-action"
+              type="button"
+              data-sandbox-lifecycle-action="pause"
+              hx-post="/dashboard/sandboxes/{{urlquery .ID}}/pause"
+              hx-target="#dashboard-content"
+              hx-swap="outerHTML"
+              hx-indicator="this"
+              hx-disabled-elt="this"
+              aria-label="Pause sandbox"
+            >
+              <i data-lucide="pause" aria-hidden="true"></i>
+              <span class="sandbox-action-label">Pause</span>
+              <span class="sandbox-action-progress" aria-hidden="true"><i data-lucide="loader-circle"></i>Pausing</span>
+            </button>
+          {{else if and (eq .State "paused") .LifecycleManaged}}
+            <button
+              class="sandbox-detail-action"
+              type="button"
+              data-sandbox-lifecycle-action="resume"
+              hx-post="/dashboard/sandboxes/{{urlquery .ID}}/resume"
+              hx-target="#dashboard-content"
+              hx-swap="outerHTML"
+              hx-indicator="this"
+              hx-disabled-elt="this"
+              aria-label="Resume sandbox"
+            >
+              <i data-lucide="play" aria-hidden="true"></i>
+              <span class="sandbox-action-label">Resume</span>
+              <span class="sandbox-action-progress" aria-hidden="true"><i data-lucide="loader-circle"></i>Resuming</span>
+            </button>
+          {{else if eq .State "pausing"}}
+            <button class="sandbox-detail-action" type="button" disabled aria-label="Sandbox is pausing">
+              <i class="sandbox-state-spinner" data-lucide="loader-circle" aria-hidden="true"></i>
+              Pausing
+            </button>
+          {{else if eq .State "resuming"}}
+            <button class="sandbox-detail-action" type="button" disabled aria-label="Sandbox is resuming">
+              <i class="sandbox-state-spinner" data-lucide="loader-circle" aria-hidden="true"></i>
+              Resuming
+            </button>
+          {{else}}
+            <button class="sandbox-detail-action" type="button" disabled title="The sandbox must be running or paused">
+              <i data-lucide="pause" aria-hidden="true"></i>
+              Pause
+            </button>
+          {{end}}
           <span class="sandbox-actions-menu">
             <button class="sandbox-actions-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More sandbox actions" title="More sandbox actions" data-sandbox-actions-toggle>
               <i data-lucide="ellipsis-vertical" aria-hidden="true"></i>

@@ -88,6 +88,53 @@ func (client *client) CreateSandbox(ctx context.Context, request CreateSandboxRe
 	return model, nil
 }
 
+// PauseSandbox pauses a running lifecycle sandbox while preserving its state.
+func (client *client) PauseSandbox(ctx context.Context, sandboxID string) error {
+	return client.changeLifecycleSandboxState(ctx, sandboxID, "pause")
+}
+
+// ResumeSandbox resumes a paused lifecycle sandbox.
+func (client *client) ResumeSandbox(ctx context.Context, sandboxID string) error {
+	return client.changeLifecycleSandboxState(ctx, sandboxID, "resume")
+}
+
+func (client *client) changeLifecycleSandboxState(ctx context.Context, sandboxID, action string) error {
+	if strings.TrimSpace(sandboxID) == "" {
+		return errors.New("sandbox ID is required")
+	}
+	path := "/sandboxes/" + url.PathEscape(sandboxID) + "/" + action
+	startedAt := time.Now()
+	request, err := client.newAPIRequest(ctx, http.MethodPost, path, nil)
+	if err != nil {
+		client.logCall(ctx, "opensandbox", http.MethodPost, path, 0, startedAt, err)
+		return err
+	}
+	response, err := client.httpClient.Do(request)
+	if err != nil {
+		requestErr := fmt.Errorf("%s lifecycle sandbox: %w", action, err)
+		client.logCall(ctx, "opensandbox", http.MethodPost, path, 0, startedAt, requestErr)
+		return requestErr
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusAccepted && response.StatusCode != http.StatusNoContent {
+		requestErr := responseStatusError(action+" lifecycle sandbox", response)
+		client.logCall(ctx, "opensandbox", http.MethodPost, path, response.StatusCode, startedAt, requestErr)
+		return requestErr
+	}
+	client.logCall(
+		ctx,
+		"opensandbox",
+		http.MethodPost,
+		path,
+		response.StatusCode,
+		startedAt,
+		nil,
+		slog.String("sandbox_id", sandboxID),
+		slog.String("action", action),
+	)
+	return nil
+}
+
 // DeleteSandbox deletes a sandbox through the lifecycle API when available,
 // falling back to its discovered Kubernetes custom resources.
 func (client *client) DeleteSandbox(ctx context.Context, sandbox Sandbox) error {

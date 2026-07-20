@@ -171,6 +171,7 @@ type sandboxDetailData struct {
 	Image             string
 	Resources         string
 	Sources           string
+	LifecycleManaged  bool
 	Metadata          []detailItem
 	Error             string
 }
@@ -426,6 +427,8 @@ func (app *application) routes() http.Handler {
 	mux.HandleFunc("GET /dashboard/sandboxes/{id}/fragment", app.sandboxDetail)
 	mux.HandleFunc("GET /dashboard/sandboxes/{id}/stats", app.sandboxStats)
 	mux.HandleFunc("GET /dashboard/sandboxes/{id}/terminal/pty", app.sandboxPTY)
+	mux.HandleFunc("POST /dashboard/sandboxes/{id}/pause", app.pauseSandbox)
+	mux.HandleFunc("POST /dashboard/sandboxes/{id}/resume", app.resumeSandbox)
 	mux.HandleFunc("POST /dashboard/sandboxes", app.createSandbox)
 	mux.HandleFunc("DELETE /dashboard/sandboxes/{id}", app.deleteSandbox)
 	mux.HandleFunc("GET /healthz", health)
@@ -463,26 +466,111 @@ func (app *application) overview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) sandboxDetail(w http.ResponseWriter, r *http.Request) {
-	sandboxID := r.PathValue("id")
-	sandboxes, listErr := app.listSandboxes(r.Context(), false)
-	data := sandboxDetailData{ID: sandboxID}
+	app.renderSandboxDetail(w, r, app.loadSandboxDetailData(r.Context(), r.PathValue("id"), false))
+}
+
+func (app *application) loadSandboxDetailData(ctx context.Context, sandboxID string, fresh bool) sandboxDetailData {
+	sandboxes, listErr := app.listSandboxes(ctx, fresh)
+	data := sandboxDetailData{ID: sandboxID, Total: len(sandboxes)}
 	for _, sandbox := range sandboxes {
 		if sandbox.ID == sandboxID {
 			data = sandboxDetailFromSandbox(sandbox)
+			data.Total = len(sandboxes)
 			break
 		}
 	}
-	data.Total = len(sandboxes)
 	if data.State == "" {
 		data.Error = fmt.Sprintf("Sandbox %q was not found", sandboxID)
 	} else if listErr != nil {
 		data.Error = "Some sandbox sources could not be loaded: " + listErr.Error()
 	}
+	return data
+}
 
+func (app *application) renderSandboxDetail(w http.ResponseWriter, r *http.Request, data sandboxDetailData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := app.sandboxTemplate.Execute(w, data); err != nil {
-		slog.ErrorContext(r.Context(), "render sandbox detail", slog.String("sandbox_id", sandboxID), slog.Any("error", err))
+		slog.ErrorContext(r.Context(), "render sandbox detail", slog.String("sandbox_id", data.ID), slog.Any("error", err))
 	}
+}
+
+func (app *application) pauseSandbox(w http.ResponseWriter, r *http.Request) {
+	app.changeSandboxState(w, r, "pause", "running", "paused")
+}
+
+func (app *application) resumeSandbox(w http.ResponseWriter, r *http.Request) {
+	app.changeSandboxState(w, r, "resume", "paused", "running")
+}
+
+func (app *application) changeSandboxState(w http.ResponseWriter, r *http.Request, action, requiredState, expectedState string) {
+	sandboxID := r.PathValue("id")
+	sandboxes, listErr := app.listSandboxes(r.Context(), true)
+	var target *opensandbox.Sandbox
+	for index := range sandboxes {
+		if sandboxes[index].ID == sandboxID {
+			target = &sandboxes[index]
+			break
+		}
+	}
+	if target == nil {
+		data := app.loadSandboxDetailData(r.Context(), sandboxID, true)
+		if listErr != nil {
+			data.Error = "Unable to locate sandbox: " + listErr.Error()
+		}
+		app.renderSandboxDetail(w, r, data)
+		return
+	}
+	state := normalizeSandboxState(target.State)
+	if state == expectedState {
+		data := sandboxDetailFromSandbox(*target)
+		data.Total = len(sandboxes)
+		app.renderSandboxDetail(w, r, data)
+		return
+	}
+	if state != requiredState {
+		data := sandboxDetailFromSandbox(*target)
+		data.Total = len(sandboxes)
+		data.Error = fmt.Sprintf("Sandbox must be %s before it can %s", requiredState, action)
+		app.renderSandboxDetail(w, r, data)
+		return
+	}
+	if !sandboxHasSource(*target, opensandbox.SourceLifecycle) {
+		data := sandboxDetailFromSandbox(*target)
+		data.Total = len(sandboxes)
+		data.Error = "Pause and resume require a sandbox managed by the Lifecycle API"
+		app.renderSandboxDetail(w, r, data)
+		return
+	}
+
+	var err error
+	if action == "pause" {
+		err = app.sandboxWriter.PauseSandbox(r.Context(), sandboxID)
+	} else {
+		err = app.sandboxWriter.ResumeSandbox(r.Context(), sandboxID)
+	}
+	if err != nil {
+		slog.ErrorContext(r.Context(), action+" sandbox", slog.String("sandbox_id", sandboxID), slog.Any("error", err))
+		data := sandboxDetailFromSandbox(*target)
+		data.Total = len(sandboxes)
+		data.Error = fmt.Sprintf("Unable to %s sandbox: %v", action, err)
+		app.renderSandboxDetail(w, r, data)
+		return
+	}
+
+	app.invalidateSandboxCache()
+	app.statsMutex.Lock()
+	delete(app.statsCache, sandboxID)
+	app.statsMutex.Unlock()
+	data := sandboxDetailFromSandbox(*target)
+	data.Total = len(sandboxes)
+	if action == "pause" {
+		data.State = "pausing"
+	} else {
+		data.State = "resuming"
+	}
+	data.StateLabel = sandboxStateLabel(data.State)
+	w.Header().Set("HX-Trigger", "sandboxStateChanged")
+	app.renderSandboxDetail(w, r, data)
 }
 
 func (app *application) sandboxStats(w http.ResponseWriter, r *http.Request) {
@@ -753,6 +841,7 @@ func sandboxDetailFromSandbox(sandbox opensandbox.Sandbox) sandboxDetailData {
 		Image:             displayValue(sandbox.Image),
 		Resources:         formatSandboxResources(sandbox.CPU, sandbox.Memory),
 		Sources:           formatSandboxSources(sandbox.Sources),
+		LifecycleManaged:  sandboxHasSource(sandbox, opensandbox.SourceLifecycle),
 		Metadata:          metadata,
 	}
 }
@@ -1000,6 +1089,15 @@ func sandboxToView(sandbox opensandbox.Sandbox) sandboxView {
 		Image:             displayValue(sandbox.Image),
 		Resources:         formatSandboxResources(sandbox.CPU, sandbox.Memory),
 	}
+}
+
+func sandboxHasSource(sandbox opensandbox.Sandbox, wanted string) bool {
+	for _, source := range sandbox.Sources {
+		if source == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 func formatSandboxSources(sources []string) string {

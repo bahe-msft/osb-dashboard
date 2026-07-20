@@ -30,6 +30,7 @@ The following variables are optional:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OSB_E2E_SANDBOX_IMAGE` | `python:3.12-slim` | Image created by the lifecycle test |
+| `OSB_E2E_KEEP_SANDBOX` | `0` | Set to `1` to skip final deletion after a successful run |
 | `OSB_E2E_OPENSANDBOX_NAMESPACE` | `opensandbox-system` | Lifecycle service namespace |
 | `OSB_E2E_SANDBOX_NAMESPACE` | `opensandbox` | Sandbox workload namespace |
 | `OSB_E2E_PORT` | Random high port | Local dashboard port |
@@ -44,10 +45,11 @@ The following variables are optional:
 - **Navigation and preferences**: stable sidebar collapse and persisted theme
 - **Sandbox lifecycle**: create a sandbox and delete it through the dashboard
 - **Sandbox details**: running state, property layout, and live stats refresh
+- **Pause and resume**: lifecycle pause, paused terminal state, resume, restored terminal availability, and root-filesystem persistence
 - **Terminal**: WebSocket connection, command execution, and connection
   preservation while switching between Details and Stats
 
-The suite currently contains eight tests split into ordered category files under
+The suite currently contains eleven tests split into ordered category files under
 `e2e/tests/`. Tests are intentionally serial because later categories operate on
 the sandbox created by the lifecycle category.
 

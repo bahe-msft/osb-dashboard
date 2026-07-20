@@ -27,10 +27,11 @@ func (service *fakeSandboxService) ListSandboxes(context.Context) ([]opensandbox
 func (service *fakeSandboxService) CreateSandbox(_ context.Context, request opensandbox.CreateSandboxRequest) (opensandbox.Sandbox, error) {
 	sandbox := opensandbox.Sandbox{
 		ID:        "sandbox-created",
-		State:     "Pending",
+		State:     "Running",
 		CreatedAt: time.Date(2026, time.July, 19, 12, 0, 0, 0, time.UTC),
 		Image:     request.Image,
 		Metadata:  request.Metadata,
+		Sources:   []string{opensandbox.SourceLifecycle},
 	}
 	service.sandboxes = append(service.sandboxes, sandbox)
 	return sandbox, nil
@@ -38,6 +39,24 @@ func (service *fakeSandboxService) CreateSandbox(_ context.Context, request open
 
 func (service *fakeSandboxService) OpenPTY(context.Context, string) (*websocket.Conn, error) {
 	return nil, nil
+}
+
+func (service *fakeSandboxService) PauseSandbox(_ context.Context, sandboxID string) error {
+	for index := range service.sandboxes {
+		if service.sandboxes[index].ID == sandboxID {
+			service.sandboxes[index].State = "Paused"
+		}
+	}
+	return nil
+}
+
+func (service *fakeSandboxService) ResumeSandbox(_ context.Context, sandboxID string) error {
+	for index := range service.sandboxes {
+		if service.sandboxes[index].ID == sandboxID {
+			service.sandboxes[index].State = "Running"
+		}
+	}
+	return nil
 }
 
 func (service *fakeSandboxService) RunCommand(context.Context, string, string) (opensandbox.CommandResult, error) {
@@ -348,6 +367,20 @@ func TestRoutes(t *testing.T) {
 			path:        "/dashboard/sandboxes/sandbox-created/fragment",
 			contentType: "text/html; charset=utf-8",
 			contains:    "sandbox-terminal-stage",
+		},
+		{
+			name:        "pause sandbox",
+			method:      http.MethodPost,
+			path:        "/dashboard/sandboxes/sandbox-created/pause",
+			contentType: "text/html; charset=utf-8",
+			contains:    "Pausing",
+		},
+		{
+			name:        "resume sandbox",
+			method:      http.MethodPost,
+			path:        "/dashboard/sandboxes/sandbox-created/resume",
+			contentType: "text/html; charset=utf-8",
+			contains:    "Resuming",
 		},
 		{
 			name:        "sandbox live stats",

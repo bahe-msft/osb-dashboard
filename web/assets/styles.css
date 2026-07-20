@@ -1202,6 +1202,26 @@ button.nav-item {
   height: 14px;
 }
 
+.sandbox-action-progress {
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.sandbox-detail-action.htmx-request > svg,
+.sandbox-detail-action.htmx-request .sandbox-action-label {
+  display: none;
+}
+
+.sandbox-detail-action.htmx-request .sandbox-action-progress {
+  display: inline-flex;
+}
+
+.sandbox-detail-action.htmx-request .sandbox-action-progress svg,
+.sandbox-detail-action .sandbox-state-spinner {
+  animation: create-spinner 0.8s linear infinite;
+}
+
 .sandbox-actions-menu {
   position: relative;
   display: inline-flex;
