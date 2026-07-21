@@ -103,6 +103,7 @@ type application struct {
 	snapshotDetailTemplate   *template.Template
 	snapshotResultTemplate   *template.Template
 	deploymentResultTemplate *template.Template
+	clusterStatsTemplate     *template.Template
 	statsTemplate            *template.Template
 	sandboxReader            opensandbox.Reader
 	sandboxWriter            opensandbox.Writer
@@ -194,6 +195,25 @@ type sandboxDetailData struct {
 	LifecycleManaged  bool
 	Metadata          []detailItem
 	Error             string
+}
+
+type clusterStatsNodeView struct {
+	Name           string
+	SandboxCount   int
+	CPUReserved    string
+	CPUPercent     float64
+	MemoryReserved string
+	MemoryPercent  float64
+}
+
+type clusterStatsData struct {
+	SandboxTotal     int
+	SnapshotTotal    int
+	ScheduledTotal   int
+	NodeTotal        int
+	SandboxesPerNode string
+	Nodes            []clusterStatsNodeView
+	Error            string
 }
 
 type sandboxStatsData struct {
@@ -548,6 +568,11 @@ func newApplication(
 		return nil, fmt.Errorf("parse deployment result template: %w", err)
 	}
 
+	clusterStatsTemplate, err := template.ParseFS(webFiles, "web/cluster-stats.html")
+	if err != nil {
+		return nil, fmt.Errorf("parse cluster stats template: %w", err)
+	}
+
 	statsTemplate, err := template.ParseFS(webFiles, "web/stats.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse stats template: %w", err)
@@ -563,6 +588,7 @@ func newApplication(
 		snapshotDetailTemplate:   snapshotDetailTemplate,
 		snapshotResultTemplate:   snapshotResultTemplate,
 		deploymentResultTemplate: deploymentResultTemplate,
+		clusterStatsTemplate:     clusterStatsTemplate,
 		statsTemplate:            statsTemplate,
 		sandboxReader:            sandboxReader,
 		sandboxWriter:            sandboxWriter,
@@ -612,8 +638,10 @@ func (app *application) routes() http.Handler {
 	mux.HandleFunc("GET /{$}", app.index)
 	mux.HandleFunc("GET /snapshots", app.snapshotsPage)
 	mux.HandleFunc("GET /snapshots/{id}", app.snapshotPage)
+	mux.HandleFunc("GET /stats", app.clusterStatsPage)
 	mux.HandleFunc("GET /sandboxes/{id}", app.sandboxPage)
 	mux.HandleFunc("GET /dashboard/overview", app.overview)
+	mux.HandleFunc("GET /dashboard/stats", app.clusterStats)
 	mux.HandleFunc("GET /dashboard/snapshots", app.snapshots)
 	mux.HandleFunc("GET /dashboard/snapshots/{id}/fragment", app.snapshotDetail)
 	mux.HandleFunc("GET /dashboard/snapshots/{id}/status", app.snapshotCreateStatus)
@@ -650,6 +678,10 @@ func (app *application) snapshotsPage(w http.ResponseWriter, r *http.Request) {
 	app.renderPage(w, r, "snapshots", "", "")
 }
 
+func (app *application) clusterStatsPage(w http.ResponseWriter, r *http.Request) {
+	app.renderPage(w, r, "stats", "", "")
+}
+
 func (app *application) snapshotPage(w http.ResponseWriter, r *http.Request) {
 	app.renderPage(w, r, "snapshot-detail", "", r.PathValue("id"))
 }
@@ -669,6 +701,8 @@ func (app *application) renderPage(w http.ResponseWriter, r *http.Request, page,
 	}
 	if page == "snapshots" {
 		data.ContentURL = "/dashboard/snapshots"
+	} else if page == "stats" {
+		data.ContentURL = "/dashboard/stats"
 	} else if snapshotID != "" {
 		data.ContentURL = "/dashboard/snapshots/" + url.PathEscape(snapshotID) + "/fragment"
 	} else if sandboxID != "" {
@@ -687,6 +721,64 @@ func (app *application) overview(w http.ResponseWriter, r *http.Request) {
 
 func (app *application) snapshots(w http.ResponseWriter, r *http.Request) {
 	app.renderSnapshots(w, r, app.loadSnapshotsData(r.Context(), false))
+}
+
+func (app *application) clusterStats(w http.ResponseWriter, r *http.Request) {
+	sandboxes, sandboxErr := app.listSandboxes(r.Context(), false)
+	snapshots, _ := app.listSnapshots(r.Context(), false)
+	loads, loadErr := app.sandboxReader.ListSandboxNodeLoads(r.Context())
+	data := clusterStatsData{
+		SandboxTotal:  len(sandboxes),
+		SnapshotTotal: len(snapshots),
+		NodeTotal:     len(loads),
+	}
+	for _, load := range loads {
+		data.ScheduledTotal += load.SandboxCount
+		cpuPercent := resourcePercent(load.CPURequestedMilli, load.CPUAllocatableMilli)
+		memoryPercent := resourcePercent(load.MemoryRequestedBytes, load.MemoryAllocatableBytes)
+		data.Nodes = append(data.Nodes, clusterStatsNodeView{
+			Name:           load.Name,
+			SandboxCount:   load.SandboxCount,
+			CPUReserved:    formatCPUReservation(load.CPURequestedMilli, load.CPUAllocatableMilli),
+			CPUPercent:     cpuPercent,
+			MemoryReserved: formatMemoryReservation(load.MemoryRequestedBytes, load.MemoryAllocatableBytes),
+			MemoryPercent:  memoryPercent,
+		})
+	}
+	if data.NodeTotal > 0 {
+		data.SandboxesPerNode = strconv.FormatFloat(float64(data.ScheduledTotal)/float64(data.NodeTotal), 'f', 1, 64)
+	} else {
+		data.SandboxesPerNode = "—"
+	}
+	if err := errors.Join(sandboxErr, loadErr); err != nil {
+		data.Error = "Some cluster statistics could not be loaded: " + err.Error()
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := app.executeHTMLTemplate(w, app.clusterStatsTemplate, "", data); err != nil {
+		slog.ErrorContext(r.Context(), "render cluster stats", slog.Any("error", err))
+	}
+}
+
+func resourcePercent(used, total int64) float64 {
+	if used <= 0 || total <= 0 {
+		return 0
+	}
+	return float64(used) / float64(total) * 100
+}
+
+func formatCPUReservation(requested, allocatable int64) string {
+	if allocatable <= 0 {
+		return formatCPUCapacity(float64(requested) / 1000)
+	}
+	return formatCPUCapacity(float64(requested)/1000) + " / " + formatCPUCapacity(float64(allocatable)/1000)
+}
+
+func formatMemoryReservation(requested, allocatable int64) string {
+	if allocatable <= 0 {
+		return formatByteCount(uint64(max(requested, 0)))
+	}
+	return formatByteCount(uint64(max(requested, 0))) + " / " + formatByteCount(uint64(allocatable))
 }
 
 func (app *application) snapshotDetail(w http.ResponseWriter, r *http.Request) {

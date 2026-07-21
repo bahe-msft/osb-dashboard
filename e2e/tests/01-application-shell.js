@@ -29,11 +29,16 @@ async page => {
   if (!await page.getByRole('button', { name: /All/ }).isVisible()) {
     throw new Error('Snapshots page did not render');
   }
+  await page.getByRole('link', { name: 'Stats', exact: true }).click();
+  await page.locator('#dashboard-content[data-page="stats"]').waitFor({ state: 'visible' });
+  if (await page.locator('.cluster-stat-card').count() !== 3) {
+    throw new Error('Stats summary did not render');
+  }
   await page.getByRole('link', { name: /Sandboxes/ }).first().click();
   await page.locator('#dashboard-content[data-page="list"]').waitFor({ state: 'visible' });
   return {
     category: 'Application shell',
-    passed: 2,
-    tests: ['health endpoint and overview render', 'snapshots navigation and page render'],
+    passed: 3,
+    tests: ['health endpoint and overview render', 'snapshots navigation and page render', 'cluster stats navigation and summary render'],
   };
 }

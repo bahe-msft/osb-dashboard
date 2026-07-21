@@ -821,7 +821,7 @@ document.addEventListener('DOMContentLoaded', function () {
   window.updatePrimaryNavigation = function () {
     var content = document.getElementById('dashboard-content');
     if (!content) { return; }
-    var page = content.dataset.page.indexOf('snapshot') === 0 ? 'snapshots' : 'sandboxes';
+    var page = content.dataset.page === 'stats' ? 'stats' : (content.dataset.page.indexOf('snapshot') === 0 ? 'snapshots' : 'sandboxes');
     document.querySelectorAll('[data-nav-page]').forEach(function (item) {
       if (item.dataset.navPage === page) {
         item.setAttribute('aria-current', 'page');

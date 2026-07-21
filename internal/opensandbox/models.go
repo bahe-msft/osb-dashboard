@@ -59,6 +59,16 @@ type Snapshot struct {
 	LastTransitionAt time.Time
 }
 
+// SandboxNodeLoad describes sandbox workloads scheduled to a Kubernetes node.
+type SandboxNodeLoad struct {
+	Name                   string
+	SandboxCount           int
+	CPURequestedMilli      int64
+	CPUAllocatableMilli    int64
+	MemoryRequestedBytes   int64
+	MemoryAllocatableBytes int64
+}
+
 type listResponse struct {
 	Items []apiSandbox `json:"items"`
 }
@@ -144,6 +154,7 @@ type podTemplate struct {
 }
 
 type podSpec struct {
+	NodeName   string          `json:"nodeName"`
 	Containers []containerSpec `json:"containers"`
 }
 
@@ -177,6 +188,8 @@ type podList struct {
 
 type podResource struct {
 	Metadata podMetadata `json:"metadata"`
+	Spec     podSpec     `json:"spec"`
+	Status   podStatus   `json:"status"`
 }
 
 type podMetadata struct {
@@ -188,6 +201,27 @@ type podMetadata struct {
 type ownerReference struct {
 	Kind string `json:"kind"`
 	Name string `json:"name"`
+}
+
+type podStatus struct {
+	Phase string `json:"phase"`
+}
+
+type nodeList struct {
+	Items []nodeResource `json:"items"`
+}
+
+type nodeResource struct {
+	Metadata nodeMetadata `json:"metadata"`
+	Status   nodeStatus   `json:"status"`
+}
+
+type nodeMetadata struct {
+	Name string `json:"name"`
+}
+
+type nodeStatus struct {
+	Allocatable map[string]string `json:"allocatable"`
 }
 
 func (sandbox apiSandbox) model() Sandbox {

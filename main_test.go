@@ -20,6 +20,7 @@ import (
 type fakeSandboxService struct {
 	sandboxes []opensandbox.Sandbox
 	snapshots []opensandbox.Snapshot
+	nodeLoads []opensandbox.SandboxNodeLoad
 }
 
 type noBashSandboxService struct {
@@ -39,6 +40,10 @@ func (service *fakeSandboxService) ListSandboxes(context.Context) ([]opensandbox
 
 func (service *fakeSandboxService) ListSnapshots(context.Context) ([]opensandbox.Snapshot, error) {
 	return append([]opensandbox.Snapshot(nil), service.snapshots...), nil
+}
+
+func (service *fakeSandboxService) ListSandboxNodeLoads(context.Context) ([]opensandbox.SandboxNodeLoad, error) {
+	return append([]opensandbox.SandboxNodeLoad(nil), service.nodeLoads...), nil
 }
 
 func (service *fakeSandboxService) GetSnapshot(_ context.Context, snapshotID string) (opensandbox.Snapshot, error) {
@@ -559,6 +564,43 @@ func TestSnapshotRoutes(t *testing.T) {
 	}
 }
 
+func TestClusterStatsRoute(t *testing.T) {
+	service := &fakeSandboxService{
+		sandboxes: []opensandbox.Sandbox{{ID: "sandbox-1"}, {ID: "sandbox-2"}},
+		nodeLoads: []opensandbox.SandboxNodeLoad{{
+			Name:                   "node-a",
+			SandboxCount:           2,
+			CPURequestedMilli:      1000,
+			CPUAllocatableMilli:    4000,
+			MemoryRequestedBytes:   2 * 1024 * 1024 * 1024,
+			MemoryAllocatableBytes: 8 * 1024 * 1024 * 1024,
+		}},
+	}
+	app, err := newApplication(
+		"/tmp/test-kubeconfig",
+		service,
+		service,
+		service,
+		service,
+		"python:3.12-slim",
+		context.Background(),
+	)
+	if err != nil {
+		t.Fatalf("newApplication() error = %v", err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/dashboard/stats", nil)
+	response := httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+	for _, expected := range []string{"node-a", "2 scheduled", "2.0", "1 core / 4 cores", "2 GiB / 8 GiB", "25.0%"} {
+		if !strings.Contains(response.Body.String(), expected) {
+			t.Errorf("response does not contain %q: %s", expected, response.Body.String())
+		}
+	}
+}
+
 func TestBasePathRoutes(t *testing.T) {
 	service := &fakeSandboxService{sandboxes: []opensandbox.Sandbox{{
 		ID:        "sandbox-1",
@@ -602,6 +644,14 @@ func TestBasePathRoutes(t *testing.T) {
 		{path: "/dashboard/snapshots", status: http.StatusOK, contains: []string{
 			`data-page="snapshots"`,
 			`hx-get="/dashboard/dashboard/snapshots"`,
+		}},
+		{path: "/dashboard/stats", status: http.StatusOK, contains: []string{
+			`data-page="stats"`,
+			`hx-get="/dashboard/dashboard/stats"`,
+		}},
+		{path: "/dashboard/dashboard/stats", status: http.StatusOK, contains: []string{
+			`Sandbox load`,
+			`sandboxes per node`,
 		}},
 		{path: "/dashboard/sandboxes/sandbox-1", status: http.StatusOK, contains: []string{
 			`data-page="detail"`,
@@ -669,6 +719,20 @@ func TestRoutes(t *testing.T) {
 			contentType:    "text/html; charset=utf-8",
 			contains:       "Deploy a new sandbox",
 			doesNotContain: "OpenSandbox API not configured",
+		},
+		{
+			name:        "stats page",
+			method:      http.MethodGet,
+			path:        "/stats",
+			contentType: "text/html; charset=utf-8",
+			contains:    "hx-get=\"/dashboard/stats\"",
+		},
+		{
+			name:        "stats fragment",
+			method:      http.MethodGet,
+			path:        "/dashboard/stats",
+			contentType: "text/html; charset=utf-8",
+			contains:    "Sandbox load",
 		},
 		{
 			name:        "snapshots page",

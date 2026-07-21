@@ -321,6 +321,50 @@ users:
 	}
 }
 
+func TestListSandboxNodeLoads(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/namespaces/opensandbox/pods":
+			_ = json.NewEncoder(w).Encode(podList{Items: []podResource{
+				{
+					Metadata: podMetadata{Labels: map[string]string{"opensandbox.io/id": "sandbox-1"}},
+					Spec:     podSpec{NodeName: "node-a", Containers: []containerSpec{{Resources: containerResources{Requests: map[string]string{"cpu": "1", "memory": "2Gi"}}}}},
+					Status:   podStatus{Phase: "Running"},
+				},
+				{
+					Metadata: podMetadata{Labels: map[string]string{"app": "unrelated"}},
+					Spec:     podSpec{NodeName: "node-a", Containers: []containerSpec{{Resources: containerResources{Requests: map[string]string{"cpu": "3", "memory": "4Gi"}}}}},
+					Status:   podStatus{Phase: "Running"},
+				},
+			}})
+		case "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode(nodeList{Items: []nodeResource{{
+				Metadata: nodeMetadata{Name: "node-a"},
+				Status:   nodeStatus{Allocatable: map[string]string{"cpu": "4", "memory": "8Gi"}},
+			}}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client, err := newClient(server.URL, server.Client(), Options{}, nil)
+	if err != nil {
+		t.Fatalf("newClient() error = %v", err)
+	}
+	loads, err := client.ListSandboxNodeLoads(context.Background())
+	if err != nil {
+		t.Fatalf("ListSandboxNodeLoads() error = %v", err)
+	}
+	if len(loads) != 1 {
+		t.Fatalf("ListSandboxNodeLoads() = %#v", loads)
+	}
+	load := loads[0]
+	if load.Name != "node-a" || load.SandboxCount != 1 || load.CPURequestedMilli != 1000 || load.CPUAllocatableMilli != 4000 || load.MemoryRequestedBytes != 2*1024*1024*1024 || load.MemoryAllocatableBytes != 8*1024*1024*1024 {
+		t.Errorf("node load = %#v", load)
+	}
+}
+
 func TestTerminalOperations(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

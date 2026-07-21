@@ -6,7 +6,7 @@
     <meta name="description" content="A lightweight dashboard for OpenSandbox">
     <meta name="htmx-config" content='{"allowEval":false}'>
     <script src="/assets/boot.js"></script>
-    <title>{{if .SandboxID}}{{.SandboxID}} · {{else if .SnapshotID}}{{.SnapshotID}} · {{else if eq .Page "snapshots"}}Snapshots · {{end}}OpenSandbox Dashboard</title>
+    <title>{{if .SandboxID}}{{.SandboxID}} · {{else if .SnapshotID}}{{.SnapshotID}} · {{else if eq .Page "snapshots"}}Snapshots · {{else if eq .Page "stats"}}Stats · {{end}}OpenSandbox Dashboard</title>
     <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/assets/vendor/ui/basecoat.min.css">
     <link rel="stylesheet" href="/assets/styles.css">
@@ -44,10 +44,10 @@
             <span class="nav-item-label">Snapshots</span>
             <span id="snapshot-nav-count" class="nav-item-count">0</span>
           </a>
-          <span class="nav-item" aria-disabled="true">
-            <span class="nav-item-icon"><i data-lucide="activity"></i></span>
-            <span class="nav-item-label">Activity</span>
-          </span>
+          <a class="nav-item" data-nav-page="stats" href="/stats" hx-get="/dashboard/stats" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/stats" {{if eq .Page "stats"}}aria-current="page"{{end}}>
+            <span class="nav-item-icon"><i data-lucide="chart-no-axes-combined"></i></span>
+            <span class="nav-item-label">Stats</span>
+          </a>
           <div class="nav-menu">
             <button id="settings-menu-toggle" class="nav-item" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="settings-submenu">
               <span class="nav-item-icon"><i data-lucide="settings"></i></span>
@@ -79,6 +79,8 @@
                 <span class="topbar-breadcrumb-current copyable-value" title="{{.SnapshotID}}">{{.SnapshotID}}</span>
               {{else if eq .Page "snapshots"}}
                 <span class="topbar-breadcrumb-current">Snapshots</span>
+              {{else if eq .Page "stats"}}
+                <span class="topbar-breadcrumb-current">Stats</span>
               {{else}}
                 <span class="topbar-breadcrumb-current">Sandboxes</span>
               {{end}}

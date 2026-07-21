@@ -38,6 +38,9 @@
  * - Prefer borderless icon-led property lists over table-like detail cards.
  * - Show live CPU, one-minute load, and memory usage as compact property rows
  *   with neutral meters and secondary informational text.
+ * - Keep cluster stats minimal: summarize sandbox count, nodes hosting sandbox
+ *   pods, and sandboxes per node; show requested CPU and memory against node
+ *   allocatable capacity without requiring Metrics Server.
  * - Represent status with hollow colored rings, never solid status dots.
  * - Use rounded filter pills and toolbar controls; group resource rows beneath
  *   quiet, collapsible section headers.
@@ -1134,6 +1137,204 @@ button.nav-item {
     background: transparent;
     backdrop-filter: blur(0);
   }
+}
+
+.cluster-stats-layout {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.cluster-stat-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.cluster-stat-card {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 13px;
+  padding: 16px;
+  border: 1px solid var(--os-border-soft);
+  border-radius: 9px;
+  background: var(--os-panel);
+}
+
+.cluster-stat-icon {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  color: var(--os-muted);
+  background: var(--os-group);
+  place-items: center;
+}
+
+.cluster-stat-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.cluster-stat-card > div {
+  display: grid;
+  min-width: 0;
+}
+
+.cluster-stat-card span {
+  color: var(--os-muted);
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.cluster-stat-card strong {
+  margin-top: 1px;
+  color: var(--os-text);
+  font-size: 22px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.cluster-stat-card small {
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--os-subtle);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-node-panel {
+  overflow: hidden;
+  border: 1px solid var(--os-border-soft);
+  border-radius: 9px;
+  background: var(--os-panel);
+}
+
+.cluster-node-panel > header {
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--os-border-soft);
+}
+
+.cluster-node-panel h1 {
+  margin: 0;
+  color: var(--os-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.cluster-node-panel header p {
+  margin: 3px 0 0;
+  color: var(--os-subtle);
+  font-size: 11px;
+}
+
+.cluster-node-table {
+  overflow-x: auto;
+}
+
+.cluster-node-table-header,
+.cluster-node-row {
+  display: grid;
+  min-width: 50rem;
+  grid-template-columns: minmax(15rem, 1.35fr) minmax(6rem, 0.45fr) minmax(14rem, 1fr) minmax(14rem, 1fr);
+  gap: 18px;
+  align-items: center;
+  padding: 11px 16px;
+}
+
+.cluster-node-table-header {
+  color: var(--os-subtle);
+  background: var(--os-group);
+  font-size: 11px;
+  font-weight: 560;
+}
+
+.cluster-node-row {
+  min-height: 58px;
+  border-top: 1px solid var(--os-border-soft);
+  color: var(--os-muted);
+  font-size: 12px;
+}
+
+.cluster-node-table-header + .cluster-node-row {
+  border-top: 0;
+}
+
+.cluster-node-row > strong {
+  overflow: hidden;
+  color: var(--os-text);
+  font: 600 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-node-resource {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.cluster-node-resource > span {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cluster-node-resource strong {
+  overflow: hidden;
+  color: var(--os-muted);
+  font-size: 11px;
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-node-resource small {
+  flex: 0 0 auto;
+  color: var(--os-subtle);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cluster-stats-empty {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 32px;
+  color: var(--os-subtle);
+  text-align: center;
+}
+
+.cluster-stats-empty > span {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 10px;
+  border-radius: 9px;
+  background: var(--os-group);
+  place-items: center;
+}
+
+.cluster-stats-empty svg {
+  width: 17px;
+  height: 17px;
+}
+
+.cluster-stats-empty strong {
+  color: var(--os-muted);
+  font-size: 12px;
+}
+
+.cluster-stats-empty p {
+  margin: 4px 0 0;
+  font-size: 11px;
 }
 
 .filter-tabs {
@@ -2651,6 +2852,14 @@ button.nav-item {
 
   .state-groups {
     min-height: calc(100vh - 106px);
+  }
+
+  .cluster-stats-layout {
+    padding: 12px;
+  }
+
+  .cluster-stat-summary {
+    grid-template-columns: 1fr;
   }
 
   .empty-state {

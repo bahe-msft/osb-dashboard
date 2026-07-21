@@ -1,0 +1,91 @@
+<title>Stats · OpenSandbox Dashboard</title>
+<section
+  id="dashboard-content"
+  data-page="stats"
+  hx-get="/dashboard/stats"
+  hx-trigger="dashboardRefresh"
+  hx-swap="outerHTML"
+  aria-live="polite"
+>
+  <div id="navigation-title" class="topbar-breadcrumb" hx-swap-oob="true">
+    <span class="topbar-breadcrumb-current">Stats</span>
+  </div>
+  <span id="page-toolbar-action" class="toolbar-action" hx-swap-oob="true"></span>
+  <span id="sandbox-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SandboxTotal}}</span>
+  <span id="snapshot-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SnapshotTotal}}</span>
+
+  {{if .Error}}
+    <div class="dashboard-error" role="alert">
+      <i data-lucide="circle-alert" aria-hidden="true"></i>
+      <span>{{.Error}}</span>
+    </div>
+  {{end}}
+
+  <div class="cluster-stats-layout">
+    <section class="cluster-stat-summary" aria-label="Sandbox cluster summary">
+      <article class="cluster-stat-card">
+        <span class="cluster-stat-icon" aria-hidden="true"><i data-lucide="boxes"></i></span>
+        <div>
+          <span>Sandboxes</span>
+          <strong>{{.SandboxTotal}}</strong>
+          <small>{{.ScheduledTotal}} scheduled</small>
+        </div>
+      </article>
+      <article class="cluster-stat-card">
+        <span class="cluster-stat-icon" aria-hidden="true"><i data-lucide="server"></i></span>
+        <div>
+          <span>Nodes</span>
+          <strong>{{.NodeTotal}}</strong>
+          <small>hosting sandboxes</small>
+        </div>
+      </article>
+      <article class="cluster-stat-card">
+        <span class="cluster-stat-icon" aria-hidden="true"><i data-lucide="scale"></i></span>
+        <div>
+          <span>Sandbox load</span>
+          <strong>{{.SandboxesPerNode}}</strong>
+          <small>sandboxes per node</small>
+        </div>
+      </article>
+    </section>
+
+    <section class="cluster-node-panel" aria-labelledby="cluster-node-load-title">
+      <header>
+        <div>
+          <h1 id="cluster-node-load-title">Node load</h1>
+          <p>Sandbox requests compared with allocatable node capacity.</p>
+        </div>
+      </header>
+      {{if .Nodes}}
+        <div class="cluster-node-table" role="table" aria-label="Sandbox load by node">
+          <div class="cluster-node-table-header" role="row">
+            <span role="columnheader">Node</span>
+            <span role="columnheader">Sandboxes</span>
+            <span role="columnheader">CPU reserved</span>
+            <span role="columnheader">Memory reserved</span>
+          </div>
+          {{range .Nodes}}
+            <div class="cluster-node-row" role="row">
+              <strong role="cell" title="{{.Name}}">{{.Name}}</strong>
+              <span role="cell">{{.SandboxCount}}</span>
+              <div class="cluster-node-resource" role="cell">
+                <span><strong>{{.CPUReserved}}</strong></span>
+                <progress class="sandbox-usage-meter" value="{{.CPUPercent}}" max="100" aria-label="CPU reservation {{printf "%.1f" .CPUPercent}} percent"></progress>
+              </div>
+              <div class="cluster-node-resource" role="cell">
+                <span><strong>{{.MemoryReserved}}</strong><small>{{printf "%.1f" .MemoryPercent}}%</small></span>
+                <progress class="sandbox-usage-meter" value="{{.MemoryPercent}}" max="100" aria-label="Memory reservation {{printf "%.1f" .MemoryPercent}} percent"></progress>
+              </div>
+            </div>
+          {{end}}
+        </div>
+      {{else}}
+        <div class="cluster-stats-empty">
+          <span aria-hidden="true"><i data-lucide="server-off"></i></span>
+          <strong>No scheduled sandbox workloads</strong>
+          <p>Nodes appear here after sandbox pods are scheduled.</p>
+        </div>
+      {{end}}
+    </section>
+  </div>
+</section>
