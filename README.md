@@ -12,6 +12,32 @@ just dev /path/to/kubeconfig
 The dashboard listens on `127.0.0.1:8080` by default. Override the address with
 `HTTP_ADDR`.
 
+## Container image
+
+Pushes to `main`, version tags such as `v1.2.3`, and manual workflow runs publish
+a multi-platform image to:
+
+```text
+ghcr.io/bahe-msft/osb-dashboard
+```
+
+The container runs as a non-root user. Mount a kubeconfig and provide an auth
+token when exposing the dashboard outside the container:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e HTTP_ADDR=0.0.0.0:8080 \
+  -e OSB_DASHBOARD_AUTH_TOKEN='replace-with-a-strong-token' \
+  -v "$HOME/.kube/config:/config/kubeconfig:ro" \
+  ghcr.io/bahe-msft/osb-dashboard:latest \
+  --kubeconfig /config/kubeconfig
+```
+
+Published images support `linux/amd64` and `linux/arm64`. The workflow also
+publishes branch, semantic-version, and commit-SHA tags and attaches provenance
+and an SBOM. After the first publish, set the package visibility to **Public** in
+GitHub Packages if anonymous pulls are required.
+
 ## Authentication
 
 Loopback development can run without authentication. A non-loopback

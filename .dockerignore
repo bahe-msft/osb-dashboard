@@ -1,0 +1,11 @@
+.git
+.github
+.direnv
+.playwright
+.playwright-cli
+e2e
+result
+result-*
+osb-dashboard
+*.test
+*.out
