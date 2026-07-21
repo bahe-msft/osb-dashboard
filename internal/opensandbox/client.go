@@ -29,6 +29,8 @@ const apiKeyHeader = "OPEN-SANDBOX-API-KEY"
 // Reader defines read-only OpenSandbox operations.
 type Reader interface {
 	ListSandboxes(context.Context) ([]Sandbox, error)
+	ListSnapshots(context.Context) ([]Snapshot, error)
+	GetSnapshot(context.Context, string) (Snapshot, error)
 }
 
 // Writer defines state-changing OpenSandbox operations.
@@ -37,6 +39,8 @@ type Writer interface {
 	DeleteSandbox(context.Context, Sandbox) error
 	PauseSandbox(context.Context, string) error
 	ResumeSandbox(context.Context, string) error
+	CreateSnapshot(context.Context, string, string) (Snapshot, error)
+	DeleteSnapshot(context.Context, string) error
 }
 
 // Terminal opens an interactive PTY WebSocket through OpenSandbox.

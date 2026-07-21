@@ -6,4 +6,5 @@
   document.documentElement.setAttribute('data-theme', savedTheme || preferredTheme);
   window.osbLiveUpdatesEnabled = localStorage.getItem('opensandbox-live-updates') !== 'paused';
   window.osbSandboxFilter = localStorage.getItem('opensandbox-state-filter') || 'all';
+  window.osbSnapshotFilter = localStorage.getItem('opensandbox-snapshot-state-filter') || 'all';
 })();

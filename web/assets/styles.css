@@ -15,7 +15,8 @@
  * - Keep page titles, resource names, and property values prominent. Property
  *   icons, labels, timestamps, counts, and supporting copy remain subtle.
  * - Display detail properties as an icon and label on the first line with the
- *   value beneath it. Keep technical values selectable and truncate safely.
+ *   value beneath it. Keep technical values on detail surfaces selectable and
+ *   truncate safely; avoid copy affordances for IDs in dense list rows.
  * - Use the system monospace stack for terminals, instructions, payloads, IDs,
  *   and other technical blocks.
  *
@@ -27,8 +28,11 @@
  * - Sandbox details use a terminal workspace plus a responsive right pane. Keep
  *   the pane selector aligned with property icons; move it above pane content on
  *   narrow viewports.
- * - Persist sidebar, theme, filter, detail-pane, and live-update preferences in
- *   localStorage.
+ * - Snapshot rows are compact and clickable outside their independent source and
+ *   action controls. Snapshot details use the full content width because they do
+ *   not have a secondary sidebar.
+ * - Persist sidebar, theme, sandbox and snapshot filters, detail-pane, and
+ *   live-update preferences in localStorage.
  *
  * Components and states
  * - Prefer borderless icon-led property lists over table-like detail cards.
@@ -37,15 +41,29 @@
  * - Represent status with hollow colored rings, never solid status dots.
  * - Use rounded filter pills and toolbar controls; group resource rows beneath
  *   quiet, collapsible section headers.
+ * - Snapshot creation and deployment stay in context. Use one stateful modal
+ *   title icon: static before submission, spinning while pending, and semantic
+ *   success or failure color at completion. Do not duplicate status icons or use
+ *   indeterminate progress bars below the title.
+ * - Keep operation results compact: show one snapshot reference, offer "Run in
+ *   background" while pending, and navigate only through explicit "View"
+ *   actions. "Done" is primary for snapshot creation; "View sandbox" is primary
+ *   after deployment.
  * - Empty, loading, error, and disconnected states should be direct and calm.
+ *   Terminal failures must include an actionable message and retry control.
  *
  * Interaction and motion
  * - Keep transitions restrained at roughly 150–200ms for hovers, panel changes,
  *   sidebar resizing, detail-pane toggles, and property-content switches.
  * - Respect prefers-reduced-motion and preserve active terminal connections
  *   across unrelated HTMX fragment swaps.
+ * - Poll snapshot and deployment operations in their modal every two seconds
+ *   until a terminal state. Closing a pending modal runs the operation in the
+ *   background; never navigate automatically when an operation is accepted.
  * - Refresh visible live regions every five seconds. The live-update preference
- *   must pause polling, and stats refreshes must not replace the terminal.
+ *   must pause dashboard polling, and stats refreshes must not replace the
+ *   terminal. Preserve terminal failure messages across live HTMX refreshes and
+ *   clear them only on retry, lifecycle change, or successful connection.
  */
 
 :root,
@@ -767,6 +785,17 @@ button.nav-item {
   gap: 8px;
 }
 
+.app-form-field[hidden] {
+  display: none;
+}
+
+.optional-label {
+  margin-left: 4px;
+  color: var(--os-subtle);
+  font-size: 11px;
+  font-weight: 500;
+}
+
 .app-form-field input,
 .app-form-field select {
   width: 100%;
@@ -789,6 +818,20 @@ button.nav-item {
 
 .app-form-field input::placeholder {
   color: var(--os-subtle);
+}
+
+.app-form-static-value {
+  display: block;
+  min-width: 0;
+  min-height: 36px;
+  overflow: hidden;
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: var(--os-text);
+  background: var(--os-group);
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-form-field select {
@@ -898,6 +941,76 @@ button.nav-item {
   display: none;
 }
 
+#create-snapshot-result:empty,
+#deploy-snapshot-result:empty {
+  display: none;
+}
+
+#create-snapshot-result:not(:empty) ~ .snapshot-create-fields,
+#create-snapshot-result:not(:empty) ~ .snapshot-create-actions,
+#deploy-snapshot-result:not(:empty) ~ .create-sandbox-fields,
+#deploy-snapshot-result:not(:empty) ~ .create-sandbox-actions {
+  display: none;
+}
+
+#create-snapshot-modal:has(#create-snapshot-result:not(:empty)) {
+  width: min(31rem, calc(100vw - 32px));
+}
+
+.snapshot-create-result {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  padding: 12px 28px 24px;
+}
+
+.modal-operation-footer {
+  padding: 14px 28px;
+}
+
+.app-modal-icon[data-state="ready"] {
+  color: var(--os-success);
+  background: color-mix(in srgb, var(--os-success) 10%, var(--os-panel));
+}
+
+.app-modal-icon[data-state="failed"] {
+  color: var(--os-danger);
+  background: color-mix(in srgb, var(--os-danger) 10%, var(--os-panel));
+}
+
+.app-modal-icon[data-state="creating"] svg,
+.app-modal-icon[data-state="checking"] svg,
+.app-modal-icon[data-state="pending"] svg {
+  animation: create-spinner 0.8s linear infinite;
+}
+
+.snapshot-create-result h3 {
+  margin: 1px 0 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.snapshot-create-result p {
+  margin: 5px 0 0;
+  color: var(--os-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.snapshot-create-result .operation-resource-reference {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.operation-resource-reference code {
+  overflow: hidden;
+  color: var(--os-muted);
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .create-submit-button {
   min-width: 5.75rem;
 }
@@ -913,21 +1026,25 @@ button.nav-item {
   height: 14px;
 }
 
-#create-sandbox-form.htmx-request .create-submit-button {
+#create-sandbox-form.htmx-request .create-submit-button,
+#create-snapshot-form.htmx-request .create-submit-button {
   cursor: wait;
   opacity: 0.78;
   pointer-events: none;
 }
 
-#create-sandbox-form.htmx-request .create-button-label {
+#create-sandbox-form.htmx-request .create-button-label,
+#create-snapshot-form.htmx-request .create-button-label {
   display: none;
 }
 
-#create-sandbox-form.htmx-request .create-button-loading {
+#create-sandbox-form.htmx-request .create-button-loading,
+#create-snapshot-form.htmx-request .create-button-loading {
   display: inline-flex;
 }
 
-#create-sandbox-form.htmx-request .create-button-loading svg {
+#create-sandbox-form.htmx-request .create-button-loading svg,
+#create-snapshot-form.htmx-request .create-button-loading svg {
   animation: create-spinner 0.8s linear infinite;
 }
 
@@ -1522,12 +1639,17 @@ button.nav-item {
 }
 
 .sandbox-terminal-overlay p {
+  max-width: 32rem;
   margin: 5px 0 14px;
   color: #9ba3b7;
   font-size: 12px;
 }
 
-.sandbox-terminal-overlay strong + button {
+.sandbox-terminal-overlay p[hidden] {
+  display: none;
+}
+
+.sandbox-terminal-overlay p[hidden] + button {
   margin-top: 14px;
 }
 
@@ -2063,6 +2185,251 @@ button.nav-item {
   stroke-width: 2;
 }
 
+.snapshot-detail-header {
+  display: flex;
+  min-height: 82px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--os-border-soft);
+}
+
+.snapshot-detail-summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.snapshot-detail-summary .status-ring {
+  width: 16px;
+  height: 16px;
+}
+
+.snapshot-detail-summary h1 {
+  overflow: hidden;
+  margin: 0;
+  color: var(--os-text);
+  font-size: 15px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-detail-summary p {
+  overflow: hidden;
+  margin: 4px 0 0;
+  color: var(--os-subtle);
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-detail-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.snapshot-detail-body {
+  padding: 20px;
+}
+
+.snapshot-detail-panel {
+  width: 100%;
+  padding: 18px;
+  border: 1px solid var(--os-border-soft);
+  border-radius: 9px;
+  background: var(--os-panel);
+}
+
+.snapshot-detail-properties {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px 28px;
+  padding: 0;
+}
+
+.snapshot-detail-link {
+  overflow: hidden;
+  color: var(--os-text);
+  font: 600 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-detail-link:hover {
+  text-decoration: underline;
+}
+
+.snapshot-list {
+  padding: 8px 0;
+}
+
+.snapshot-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  min-height: 58px;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 3px;
+  margin: 0 12px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.snapshot-row:hover {
+  background: var(--os-hover);
+}
+
+.snapshot-row > .status-ring {
+  grid-row: 1 / 3;
+}
+
+.snapshot-headline {
+  display: flex;
+  min-width: 0;
+  grid-column: 2;
+  grid-row: 1;
+  align-items: baseline;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.snapshot-headline:hover strong {
+  text-decoration: underline;
+}
+
+.snapshot-headline strong {
+  overflow: hidden;
+  color: var(--os-text);
+  font-size: 13px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-id {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--os-subtle);
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-source {
+  display: flex;
+  min-width: 0;
+  grid-column: 2;
+  grid-row: 2;
+  align-items: center;
+  gap: 6px;
+  color: var(--os-subtle);
+  font-size: 11px;
+}
+
+.snapshot-source > span:last-child,
+.snapshot-source a {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--os-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-source a {
+  text-decoration: none;
+}
+
+.snapshot-source a:hover {
+  color: var(--os-text);
+  text-decoration: underline;
+}
+
+.snapshot-row-actions {
+  display: flex;
+  width: 10rem;
+  min-width: 0;
+  grid-column: 3;
+  grid-row: 1 / 3;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.snapshot-row-actions time {
+  flex: 1 0 100%;
+  color: var(--os-subtle);
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.snapshot-action-button {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--os-muted);
+  background: transparent;
+  place-items: center;
+}
+
+.snapshot-action-button:hover:not(:disabled) {
+  border-color: var(--os-border);
+  color: var(--os-text);
+  background: var(--os-panel);
+}
+
+.snapshot-action-button:disabled {
+  color: var(--os-subtle);
+  opacity: 0.45;
+}
+
+.snapshot-action-button.htmx-request {
+  cursor: wait;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.snapshot-action-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.snapshot-group.is-filtered-view > .group-toggle,
+.snapshot-group.is-filtered-view > label {
+  display: none;
+}
+
+.snapshot-group.is-filtered-view > .group-toggle ~ .snapshot-list {
+  display: block;
+  padding-top: 0;
+}
+
+.snapshot-group > .group-toggle:not(:checked) ~ .snapshot-list {
+  display: none;
+}
+
+.snapshot-empty-state {
+  cursor: default;
+}
+
+.snapshot-empty-state:hover {
+  border-color: var(--os-border);
+  background: transparent;
+}
+
 .status-ring {
   width: 14px;
   height: 14px;
@@ -2072,17 +2439,20 @@ button.nav-item {
   background: transparent;
 }
 
-.status-ring[data-status="pending"] {
+.status-ring[data-status="pending"],
+.status-ring[data-status="creating"] {
   border-color: var(--os-warning);
 }
 
 .status-ring[data-status="running"],
 .status-ring[data-status="succeeded"],
-.status-ring[data-status="active"] {
+.status-ring[data-status="active"],
+.status-ring[data-status="ready"] {
   border-color: var(--os-success);
 }
 
-.status-ring[data-status="paused"] {
+.status-ring[data-status="paused"],
+.status-ring[data-status="deleting"] {
   border-color: var(--os-subtle);
 }
 
@@ -2207,6 +2577,18 @@ button.nav-item {
     opacity: 1;
   }
 
+  .snapshot-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .snapshot-detail-properties {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .snapshot-row-actions {
+    grid-column: 3;
+  }
+
   .sandbox-detail-header,
   .sandbox-detail-layout {
     grid-template-columns: 1fr;
@@ -2279,6 +2661,37 @@ button.nav-item {
     flex-wrap: wrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .snapshot-headline {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .snapshot-detail-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .snapshot-detail-body {
+    padding: 12px;
+  }
+
+  .snapshot-detail-panel {
+    padding: 14px;
+  }
+
+  .snapshot-detail-properties {
+    grid-template-columns: 1fr;
+  }
+
+  .snapshot-row-actions {
+    width: 4rem;
+  }
+
+  .snapshot-row-actions time {
+    display: none;
   }
 
   .metadata-separator {

@@ -1,0 +1,119 @@
+<title>{{.Name}} · OpenSandbox Dashboard</title>
+<section
+  id="dashboard-content"
+  data-page="snapshot-detail"
+  hx-get="/dashboard/snapshots/{{urlquery .ID}}/fragment"
+  hx-trigger="dashboardRefresh"
+  hx-swap="outerHTML"
+  aria-live="polite"
+>
+  <div id="navigation-title" class="topbar-breadcrumb" hx-swap-oob="true">
+    <a href="/snapshots" hx-get="/dashboard/snapshots" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/snapshots">Snapshots</a>
+    <span class="topbar-breadcrumb-sep">/</span>
+    <span class="topbar-breadcrumb-current copyable-value" title="{{.ID}}">{{.ID}}</span>
+  </div>
+  <span id="page-toolbar-action" class="toolbar-action" hx-swap-oob="true"></span>
+  <span id="sandbox-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SandboxTotal}}</span>
+  <span id="snapshot-nav-count" class="nav-item-count" hx-swap-oob="true">{{.Total}}</span>
+
+  {{if .Error}}
+    <div class="dashboard-error" role="alert">
+      <i data-lucide="circle-alert" aria-hidden="true"></i>
+      <span>{{.Error}}</span>
+    </div>
+  {{end}}
+
+  {{if .State}}
+    <header class="snapshot-detail-header">
+      <div class="snapshot-detail-summary">
+        <span class="status-ring" data-status="{{.State}}" aria-hidden="true"></span>
+        <div>
+          <h1>{{.Name}}</h1>
+          <p class="copyable-value" title="{{.ID}}">{{.ID}}</p>
+        </div>
+      </div>
+      <div class="snapshot-detail-actions">
+        {{if .CanRestore}}
+          <button
+            class="sandbox-detail-action"
+            type="button"
+            data-restore-snapshot
+            data-snapshot-id="{{.ID}}"
+            data-snapshot-name="{{.Name}}"
+            aria-label="Deploy snapshot {{.Name}}"
+          >
+            <i data-lucide="archive-restore" aria-hidden="true"></i>
+            Deploy
+          </button>
+        {{end}}
+        <button
+          class="sandbox-detail-action"
+          data-variant="danger"
+          type="button"
+          {{if not .CanDelete}}disabled{{end}}
+          hx-delete="/dashboard/snapshots/{{urlquery .ID}}"
+          hx-target="#dashboard-content"
+          hx-swap="outerHTML"
+          hx-push-url="/snapshots"
+          hx-indicator="this"
+          hx-disabled-elt="this"
+          hx-confirm="Deleting snapshot {{.ID}} cannot be undone."
+          data-confirm-title="Delete snapshot?"
+          data-confirm-label="Delete"
+          data-confirm-variant="danger"
+        >
+          <i data-lucide="trash-2" aria-hidden="true"></i>
+          Delete
+        </button>
+      </div>
+    </header>
+
+    <div class="snapshot-detail-body">
+      <section class="snapshot-detail-panel" aria-label="Snapshot details">
+        <div class="sandbox-info-properties snapshot-detail-properties">
+          <div class="sandbox-info-property">
+            <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="circle-dot"></i></span>
+            <div class="sandbox-info-property-body">
+              <span class="sandbox-detail-property-label">Status</span>
+              <strong class="sandbox-detail-property-value">{{.StateLabel}}</strong>
+            </div>
+          </div>
+          <div class="sandbox-info-property">
+            <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="box"></i></span>
+            <div class="sandbox-info-property-body">
+              <span class="sandbox-detail-property-label">Source sandbox</span>
+              {{if .SourceSandboxAvailable}}
+                <a
+                  class="snapshot-detail-link"
+                  href="/dashboard/sandboxes/{{urlquery .SandboxID}}"
+                  hx-get="/dashboard/sandboxes/{{urlquery .SandboxID}}/fragment"
+                  hx-target="#dashboard-content"
+                  hx-swap="outerHTML"
+                  hx-push-url="/dashboard/sandboxes/{{urlquery .SandboxID}}"
+                >{{.SandboxID}}</a>
+              {{else}}
+                <strong class="sandbox-detail-property-value copyable-value" title="{{.SandboxID}}">{{.SandboxID}}</strong>
+              {{end}}
+            </div>
+          </div>
+          <div class="sandbox-info-property">
+            <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="calendar-clock"></i></span>
+            <div class="sandbox-info-property-body">
+              <span class="sandbox-detail-property-label">Created</span>
+              <strong class="sandbox-detail-property-value"><time datetime="{{.CreatedAtISO}}" data-created-time data-no-prefix>{{.CreatedAtFallback}}</time></strong>
+            </div>
+          </div>
+          {{if .LastTransitionAtISO}}
+            <div class="sandbox-info-property">
+              <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="history"></i></span>
+              <div class="sandbox-info-property-body">
+                <span class="sandbox-detail-property-label">Last transition</span>
+                <strong class="sandbox-detail-property-value"><time datetime="{{.LastTransitionAtISO}}" data-created-time data-no-prefix>{{.LastTransitionAtFallback}}</time></strong>
+              </div>
+            </div>
+          {{end}}
+        </div>
+      </section>
+    </div>
+  {{end}}
+</section>

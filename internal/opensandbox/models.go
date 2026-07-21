@@ -37,13 +37,26 @@ type ResourceReference struct {
 	Name      string
 }
 
-// CreateSandboxRequest describes a new image-backed sandbox.
+// CreateSandboxRequest describes an image-backed or snapshot-restored sandbox.
 type CreateSandboxRequest struct {
 	Image          string
+	SnapshotID     string
 	Entrypoint     []string
 	Timeout        time.Duration
 	ResourceLimits map[string]string
 	Metadata       map[string]string
+}
+
+// Snapshot is a persistent point-in-time capture managed by the lifecycle API.
+type Snapshot struct {
+	ID               string
+	SandboxID        string
+	Name             string
+	State            string
+	Reason           string
+	Message          string
+	CreatedAt        time.Time
+	LastTransitionAt time.Time
 }
 
 type listResponse struct {
@@ -67,11 +80,41 @@ type apiSandboxImage struct {
 }
 
 type apiCreateRequest struct {
-	Image          apiSandboxImage   `json:"image"`
-	Entrypoint     []string          `json:"entrypoint"`
+	Image          *apiSandboxImage  `json:"image,omitempty"`
+	SnapshotID     string            `json:"snapshotId,omitempty"`
+	Entrypoint     []string          `json:"entrypoint,omitempty"`
 	Timeout        *int              `json:"timeout,omitempty"`
 	ResourceLimits map[string]string `json:"resourceLimits"`
 	Metadata       map[string]string `json:"metadata,omitempty"`
+}
+
+type snapshotListResponse struct {
+	Items      []apiSnapshot  `json:"items"`
+	Pagination paginationInfo `json:"pagination"`
+}
+
+type paginationInfo struct {
+	Page        int  `json:"page"`
+	HasNextPage bool `json:"hasNextPage"`
+}
+
+type apiSnapshot struct {
+	ID        string            `json:"id"`
+	SandboxID string            `json:"sandboxId"`
+	Name      string            `json:"name"`
+	Status    apiSnapshotStatus `json:"status"`
+	CreatedAt time.Time         `json:"createdAt"`
+}
+
+type apiSnapshotStatus struct {
+	State            string    `json:"state"`
+	Reason           string    `json:"reason"`
+	Message          string    `json:"message"`
+	LastTransitionAt time.Time `json:"lastTransitionAt"`
+}
+
+type apiCreateSnapshotRequest struct {
+	Name string `json:"name,omitempty"`
 }
 
 type customResourceList struct {
@@ -155,5 +198,18 @@ func (sandbox apiSandbox) model() Sandbox {
 		Image:     sandbox.Image.URI,
 		Metadata:  sandbox.Metadata,
 		Sources:   []string{SourceLifecycle},
+	}
+}
+
+func (snapshot apiSnapshot) model() Snapshot {
+	return Snapshot{
+		ID:               snapshot.ID,
+		SandboxID:        snapshot.SandboxID,
+		Name:             snapshot.Name,
+		State:            snapshot.Status.State,
+		Reason:           snapshot.Status.Reason,
+		Message:          snapshot.Status.Message,
+		CreatedAt:        snapshot.CreatedAt,
+		LastTransitionAt: snapshot.Status.LastTransitionAt,
 	}
 }

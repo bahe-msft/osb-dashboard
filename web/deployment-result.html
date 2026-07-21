@@ -1,0 +1,59 @@
+{{define "deployment-result-status"}}
+<span id="create-sandbox-modal-icon" class="app-modal-icon" data-create-sandbox-icon data-state="{{.StateKey}}" aria-hidden="true" hx-swap-oob="true">
+  {{if .Ready}}
+    <i data-lucide="circle-check"></i>
+  {{else if .Failed}}
+    <i data-lucide="circle-alert"></i>
+  {{else}}
+    <i data-lucide="loader-circle"></i>
+  {{end}}
+</span>
+<div
+  id="sandbox-deployment-result-content"
+  data-sandbox-state="{{.StateKey}}"
+  data-sandbox-id="{{.SandboxID}}"
+  {{if .Polling}}
+    hx-get="/dashboard/sandboxes/{{urlquery .SandboxID}}/deployment-status?snapshotId={{urlquery .SnapshotID}}&snapshotName={{urlquery .SnapshotName}}"
+    hx-trigger="load delay:2s"
+    hx-target="this"
+    hx-swap="outerHTML"
+  {{end}}
+>
+  <div class="app-modal-body snapshot-create-result" role="status" aria-live="polite">
+    <div>
+      {{if .Ready}}
+        <h3>Sandbox deployed from snapshot</h3>
+      {{else if .Failed}}
+        <h3>Sandbox deployment from snapshot failed</h3>
+      {{else}}
+        <h3>{{if eq .StateKey "checking"}}Checking sandbox deployment{{else}}Deploying sandbox from snapshot{{end}}</h3>
+      {{end}}
+      <p class="operation-resource-reference"><span>Snapshot:</span> <code title="{{.SnapshotID}}">{{.SnapshotID}}</code></p>
+    </div>
+  </div>
+  <footer class="app-modal-footer modal-operation-footer">
+    {{if .Ready}}
+      <button class="app-modal-button" data-variant="secondary" type="button" data-create-modal-close>Done</button>
+      <button
+        class="app-modal-button"
+        data-variant="primary"
+        type="button"
+        data-view-sandbox
+        hx-get="/dashboard/sandboxes/{{urlquery .SandboxID}}/fragment"
+        hx-target="#dashboard-content"
+        hx-swap="outerHTML"
+        hx-push-url="/dashboard/sandboxes/{{urlquery .SandboxID}}"
+      >View sandbox</button>
+    {{else if .Polling}}
+      <button class="app-modal-button" data-variant="primary" type="button" data-create-modal-close>Run in background</button>
+    {{else}}
+      <button class="app-modal-button" data-variant="primary" type="button" data-create-modal-close>Done</button>
+    {{end}}
+  </footer>
+</div>
+{{end}}
+
+{{define "deployment-result"}}
+<span id="sandbox-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SandboxTotal}}</span>
+{{template "deployment-result-status" .}}
+{{end}}

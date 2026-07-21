@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var root = document.documentElement;
   var liveUpdatesStorageKey = 'opensandbox-live-updates';
   var sandboxFilterStorageKey = 'opensandbox-state-filter';
+  var snapshotFilterStorageKey = 'opensandbox-snapshot-state-filter';
   var detailsPaneStorageKey = 'opensandbox-details-pane';
   var themeStorageKey = 'opensandbox-theme';
   var themeSwitch = document.getElementById('theme-switch');
@@ -12,6 +13,9 @@ document.addEventListener('DOMContentLoaded', function () {
   var createSandboxModal = document.getElementById('create-sandbox-modal');
   var createSandboxForm = document.getElementById('create-sandbox-form');
   var createSandboxError = document.getElementById('create-sandbox-error');
+  var createSnapshotModal = document.getElementById('create-snapshot-modal');
+  var createSnapshotForm = document.getElementById('create-snapshot-form');
+  var createSnapshotError = document.getElementById('create-snapshot-error');
   var imageInput = createSandboxForm.elements.image;
   var resourcePresetInput = createSandboxForm.elements.resourcePreset;
   var resourcePresetLabel = document.getElementById('resource-preset-label');
@@ -169,20 +173,50 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!event.target.closest('.preset-input-control')) { closePresetMenus(); }
   });
 
-  function openCreateSandboxModal() {
+  function setCreateSandboxMode(snapshotID, snapshotName) {
+    var restoring = Boolean(snapshotID);
+    createSandboxForm.elements.snapshotId.value = snapshotID || '';
+    createSandboxForm.elements.snapshotName.value = snapshotName || snapshotID || '';
+    createSandboxForm.setAttribute('hx-target', restoring ? '#deploy-snapshot-result' : '#dashboard-content');
+    createSandboxForm.setAttribute('hx-swap', restoring ? 'innerHTML' : 'outerHTML');
+    createSandboxForm.elements.image.disabled = restoring;
+    createSandboxForm.elements.image.required = !restoring;
+    createSandboxForm.querySelector('[data-sandbox-image-field]').hidden = restoring;
+    createSandboxForm.querySelector('[data-snapshot-source-field]').hidden = !restoring;
+    var snapshotSource = document.getElementById('sandbox-snapshot-source');
+    snapshotSource.textContent = restoring ? (snapshotName || snapshotID) : '';
+    snapshotSource.title = restoring ? snapshotID : '';
+    document.getElementById('create-sandbox-modal-title').textContent = restoring ? 'Deploy snapshot' : 'Create sandbox';
+    createSandboxForm.querySelector('.create-button-label').textContent = restoring ? 'Deploy' : 'Create';
+    createSandboxForm.querySelector('[data-create-loading-label]').textContent = restoring ? 'Deploying' : 'Creating';
+    var modalIcon = document.querySelector('[data-create-sandbox-icon]');
+    modalIcon.removeAttribute('data-state');
+    modalIcon.removeAttribute('hx-swap-oob');
+    modalIcon.innerHTML = '<i data-lucide="' + (restoring ? 'archive-restore' : 'box') + '"></i>';
+    if (window.lucide) { lucide.createIcons(); }
+  }
+
+  function openCreateSandboxModal(snapshotID, snapshotName) {
     createSandboxError.hidden = true;
     createSandboxError.textContent = '';
+    document.getElementById('deploy-snapshot-result').innerHTML = '';
     createSandboxModal.classList.remove('is-closing');
     createSandboxModal.returnValue = '';
     closePresetMenus();
+    setCreateSandboxMode(snapshotID, snapshotName);
     createSandboxModal.showModal();
     requestAnimationFrame(function () {
-      createSandboxForm.elements.image.focus();
+      (snapshotID ? document.getElementById('resource-presets-toggle') : createSandboxForm.elements.image).focus();
     });
   }
 
   document.body.addEventListener('click', function (event) {
-    if (event.target.closest('[data-open-create-modal]')) { openCreateSandboxModal(); }
+    var restore = event.target.closest('[data-restore-snapshot]');
+    if (restore) {
+      openCreateSandboxModal(restore.dataset.snapshotId, restore.dataset.snapshotName);
+      return;
+    }
+    if (event.target.closest('[data-open-create-modal]')) { openCreateSandboxModal('', ''); }
   });
 
   createSandboxModal.addEventListener('cancel', function (event) {
@@ -198,6 +232,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   createSandboxModal.addEventListener('close', function () {
     createSandboxForm.reset();
+    document.getElementById('deploy-snapshot-result').innerHTML = '';
+    setCreateSandboxMode('', '');
     closePresetMenus();
     createSandboxError.hidden = true;
     createSandboxError.textContent = '';
@@ -222,12 +258,90 @@ document.addEventListener('DOMContentLoaded', function () {
     dismissModal(createSandboxModal, 'accepted');
   });
 
+  document.body.addEventListener('sandboxDeploymentStarted', function () {
+    window.setTimeout(window.refreshDashboard, 500);
+  });
+
+  function openCreateSnapshotModal(sandboxID) {
+    createSnapshotForm.reset();
+    createSnapshotForm.elements.sandboxID.value = sandboxID;
+    var sourceSandbox = document.getElementById('snapshot-source-sandbox');
+    sourceSandbox.textContent = sandboxID;
+    sourceSandbox.title = sandboxID;
+    createSnapshotError.hidden = true;
+    createSnapshotError.textContent = '';
+    document.getElementById('create-snapshot-result').innerHTML = '';
+    var modalIcon = document.getElementById('create-snapshot-modal-icon');
+    modalIcon.removeAttribute('data-state');
+    modalIcon.removeAttribute('hx-swap-oob');
+    modalIcon.innerHTML = '<i data-lucide="layers-3"></i>';
+    if (window.lucide) { lucide.createIcons(); }
+    createSnapshotModal.classList.remove('is-closing');
+    createSnapshotModal.returnValue = '';
+    closeSandboxActionsMenu();
+    createSnapshotModal.showModal();
+    requestAnimationFrame(function () { createSnapshotForm.elements.name.focus(); });
+  }
+
+  document.body.addEventListener('click', function (event) {
+    var action = event.target.closest('[data-open-snapshot-modal]');
+    if (action) { openCreateSnapshotModal(action.dataset.sandboxId); }
+  });
+
+  createSnapshotModal.addEventListener('cancel', function (event) {
+    event.preventDefault();
+    dismissModal(createSnapshotModal, 'cancel');
+  });
+
+  createSnapshotModal.addEventListener('click', function (event) {
+    if (event.target.closest('[data-snapshot-modal-close]') || event.target === createSnapshotModal) {
+      dismissModal(createSnapshotModal, 'cancel');
+    }
+  });
+
+  createSnapshotModal.addEventListener('close', function () {
+    createSnapshotForm.reset();
+    document.getElementById('create-snapshot-result').innerHTML = '';
+    createSnapshotError.hidden = true;
+    createSnapshotError.textContent = '';
+  });
+
+  createSnapshotForm.addEventListener('htmx:beforeRequest', function () {
+    createSnapshotForm.setAttribute('aria-busy', 'true');
+    createSnapshotError.hidden = true;
+    createSnapshotError.textContent = '';
+  });
+
+  createSnapshotForm.addEventListener('htmx:afterRequest', function () {
+    createSnapshotForm.setAttribute('aria-busy', 'false');
+  });
+
+  createSnapshotForm.addEventListener('htmx:responseError', function (event) {
+    createSnapshotError.textContent = event.detail.xhr.responseText.trim() || 'Unable to create snapshot.';
+    createSnapshotError.hidden = false;
+  });
+
+  document.body.addEventListener('snapshotCreated', function () {
+    window.setTimeout(window.refreshDashboard, 500);
+  });
+
+  document.body.addEventListener('htmx:afterRequest', function (event) {
+    if (!event.detail.successful) { return; }
+    if (event.detail.elt.closest('[data-view-snapshot]')) {
+      dismissModal(createSnapshotModal, 'view-snapshot');
+    }
+    if (event.detail.elt.closest('[data-view-sandbox]')) {
+      dismissModal(createSandboxModal, 'view-sandbox');
+    }
+  });
+
   document.body.addEventListener('htmx:beforeRequest', function (event) {
     var action = event.detail.elt.closest('[data-sandbox-lifecycle-action]');
     if (!action) { return; }
     window.osbSandboxInfoPanel = 'details';
     window.osbLifecycleActionActive = true;
     window.osbTerminalActive = false;
+    window.osbTerminalError = null;
     if (window.osbTerminalSocket) {
       window.osbTerminalSocket.close(1000, 'Sandbox state is changing');
       window.osbTerminalSocket = null;
@@ -252,6 +366,27 @@ document.addEventListener('DOMContentLoaded', function () {
       if (confirmed) { event.detail.issueRequest(true); }
     });
   });
+
+  window.restoreSandboxTerminalError = function () {
+    var error = window.osbTerminalError;
+    var container = document.getElementById('sandbox-terminal');
+    var overlay = document.querySelector('[data-terminal-overlay]');
+    if (!error || !container || !overlay || error.sandboxID !== container.dataset.sandboxId) { return; }
+
+    overlay.hidden = false;
+    var title = overlay.querySelector('[data-terminal-overlay-title]');
+    var message = overlay.querySelector('[data-terminal-overlay-message]');
+    var button = overlay.querySelector('[data-terminal-connect]');
+    if (title) { title.textContent = 'Terminal unavailable'; }
+    if (message) {
+      message.textContent = error.message;
+      message.hidden = false;
+    }
+    if (button) {
+      button.textContent = 'Retry';
+      button.disabled = false;
+    }
+  };
 
   window.initializeSandboxTerminal = async function (connect) {
     var container = document.getElementById('sandbox-terminal');
@@ -290,6 +425,10 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     if (container.dataset.terminalEnabled !== 'true') { return; }
+    var sandboxID = container.dataset.sandboxId;
+    if (connect === true && window.osbTerminalError?.sandboxID === sandboxID) {
+      window.osbTerminalError = null;
+    }
     if (sameTerminal && window.osbTerminalSocket && window.osbTerminalSocket.readyState <= WebSocket.OPEN) { return; }
     if (window.osbTerminalInstance) { window.osbTerminalInstance.dispose(); }
     if (window.osbTerminalResizeObserver) { window.osbTerminalResizeObserver.disconnect(); }
@@ -306,7 +445,10 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!overlay) { return; }
       overlay.hidden = false;
       if (overlayTitle) { overlayTitle.textContent = title; }
-      if (overlayMessage) { overlayMessage.textContent = message; }
+      if (overlayMessage) {
+        overlayMessage.textContent = message || '';
+        overlayMessage.hidden = !message;
+      }
       if (connectButton) {
         connectButton.textContent = buttonLabel;
         connectButton.disabled = buttonDisabled;
@@ -332,13 +474,26 @@ document.addEventListener('DOMContentLoaded', function () {
       window.osbTerminalResizeObserver = new ResizeObserver(function () { fitAddon.fit(); });
       window.osbTerminalResizeObserver.observe(container);
 
-      var sandboxID = container.dataset.sandboxId;
       var websocketScheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       var websocketURL = websocketScheme + '//' + window.location.host + '/dashboard/sandboxes/' + encodeURIComponent(sandboxID) + '/terminal/pty';
       var socket = new WebSocket(websocketURL);
       socket.binaryType = 'arraybuffer';
       window.osbTerminalSocket = socket;
       var encoder = new TextEncoder();
+      var terminalFailure = false;
+      var connectionTimer = window.setTimeout(function () {
+        failTerminal('OpenSandbox did not finish starting the terminal.');
+        socket.close();
+      }, 15 * 1000);
+
+      function failTerminal(message) {
+        var failureMessage = message || 'The terminal could not be started.';
+        terminalFailure = true;
+        window.clearTimeout(connectionTimer);
+        window.osbTerminalActive = false;
+        window.osbTerminalError = { sandboxID: sandboxID, message: failureMessage };
+        showOverlay('Terminal unavailable', failureMessage, 'Retry', false);
+      }
 
       function sendChannel(channel, payload) {
         if (socket.readyState !== WebSocket.OPEN) { return; }
@@ -362,8 +517,12 @@ document.addEventListener('DOMContentLoaded', function () {
           try {
             var message = JSON.parse(event.data);
             if (message.type === 'connected') {
+              window.clearTimeout(connectionTimer);
+              window.osbTerminalError = null;
               if (overlay) { overlay.hidden = true; }
               terminal.focus();
+            } else if (message.type === 'error') {
+              failTerminal(message.message || message.error);
             }
           } catch (_) {}
           return;
@@ -377,19 +536,24 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       });
       socket.addEventListener('close', function () {
+        window.clearTimeout(connectionTimer);
         window.osbTerminalActive = false;
-        showOverlay('Terminal disconnected', 'The PTY connection has closed.', 'Reconnect', false);
+        if (!terminalFailure) {
+          showOverlay('Terminal disconnected', 'The PTY connection has closed.', 'Reconnect', false);
+        }
       });
       socket.addEventListener('error', function () {
-        window.osbTerminalActive = false;
-        showOverlay('Unable to connect', 'The PTY connection could not be opened.', 'Reconnect', false);
+        if (!terminalFailure) {
+          failTerminal('The PTY connection could not be opened.');
+        }
       });
 
       terminal.onData(function (data) { sendChannel(0, encoder.encode(data)); });
       terminal.onResize(function (size) { sendTerminalSize(size); });
     } catch (error) {
       window.osbTerminalActive = false;
-      showOverlay('Terminal unavailable', error.message, 'Reconnect', false);
+      window.osbTerminalError = { sandboxID: sandboxID, message: error.message };
+      showOverlay('Terminal unavailable', error.message, 'Retry', false);
     }
   };
 
@@ -570,13 +734,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
   window.refreshDashboard = function () {
     if (document.visibilityState !== 'visible' || window.osbLiveUpdatesEnabled === false || window.osbLifecycleActionActive === true || !window.htmx) { return; }
-    if (window.osbSandboxInfoPanel === 'stats') {
+    var content = document.getElementById('dashboard-content');
+    if (content && content.dataset.page === 'detail' && window.osbSandboxInfoPanel === 'stats') {
       var stats = document.getElementById('sandbox-live-stats');
       if (stats) { htmx.trigger(stats, 'statsRefresh'); }
       return;
     }
     if (window.osbTerminalActive === true) { return; }
-    var content = document.getElementById('dashboard-content');
     if (content) { htmx.trigger(content, 'dashboardRefresh'); }
   };
 
@@ -617,6 +781,55 @@ document.addEventListener('DOMContentLoaded', function () {
     localStorage.setItem(sandboxFilterStorageKey, window.osbSandboxFilter);
     window.applySandboxFilter();
   });
+
+  window.applySnapshotFilter = function () {
+    var pills = Array.from(document.querySelectorAll('[data-snapshot-state-filter]'));
+    if (!pills.length) { return; }
+
+    var selected = window.osbSnapshotFilter || 'all';
+    if (!pills.some(function (pill) { return pill.dataset.snapshotStateFilter === selected; })) {
+      selected = 'all';
+      window.osbSnapshotFilter = selected;
+      localStorage.setItem(snapshotFilterStorageKey, selected);
+    }
+    pills.forEach(function (pill) {
+      var active = pill.dataset.snapshotStateFilter === selected;
+      pill.setAttribute('data-active', active ? 'true' : 'false');
+      pill.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+
+    var groups = Array.from(document.querySelectorAll('[data-snapshot-state]'));
+    var visibleGroups = 0;
+    groups.forEach(function (group) {
+      var visible = selected === 'all' || group.dataset.snapshotState === selected;
+      group.hidden = !visible;
+      group.classList.toggle('is-filtered-view', visible && selected !== 'all');
+      if (visible) { visibleGroups += 1; }
+    });
+    var filteredEmpty = document.querySelector('[data-snapshot-filter-empty]');
+    if (filteredEmpty) { filteredEmpty.hidden = visibleGroups !== 0; }
+  };
+
+  document.body.addEventListener('click', function (event) {
+    var pill = event.target.closest('[data-snapshot-state-filter]');
+    if (!pill) { return; }
+    window.osbSnapshotFilter = pill.dataset.snapshotStateFilter;
+    localStorage.setItem(snapshotFilterStorageKey, window.osbSnapshotFilter);
+    window.applySnapshotFilter();
+  });
+
+  window.updatePrimaryNavigation = function () {
+    var content = document.getElementById('dashboard-content');
+    if (!content) { return; }
+    var page = content.dataset.page.indexOf('snapshot') === 0 ? 'snapshots' : 'sandboxes';
+    document.querySelectorAll('[data-nav-page]').forEach(function (item) {
+      if (item.dataset.navPage === page) {
+        item.setAttribute('aria-current', 'page');
+      } else {
+        item.removeAttribute('aria-current');
+      }
+    });
+  };
 
   function liveUpdatesEnabled() {
     return window.osbLiveUpdatesEnabled !== false;
@@ -693,20 +906,31 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  document.body.addEventListener('click', function (event) {
+    var row = event.target.closest('.snapshot-row[role="link"]');
+    if (!row || event.target.closest('a, button, input, select, textarea')) { return; }
+    var link = row.querySelector('[data-snapshot-row-link]');
+    if (link) { link.click(); }
+  });
+
   document.body.addEventListener('keydown', function (event) {
     if (event.key !== 'Enter' && event.key !== ' ') { return; }
-    var action = event.target.closest('[role="button"][data-open-create-modal], [role="link"][hx-get]');
+    if (event.target.closest('button, a, input, select, textarea')) { return; }
+    var action = event.target.closest('[role="button"][data-open-create-modal], [role="link"][hx-get], .snapshot-row[role="link"]');
     if (!action) { return; }
     event.preventDefault();
     action.click();
   });
   updateSidebarLabel();
   window.applySandboxFilter();
+  window.applySnapshotFilter();
+  window.updatePrimaryNavigation();
   window.localizeSandboxTimes();
   window.updatePageActions();
   window.applySandboxInfoPanel();
   window.initializeSandboxDeleteButtons();
   window.initializeSandboxTerminal();
+  window.restoreSandboxTerminalError();
   window.setInterval(window.refreshDashboard, 5 * 1000);
   window.setInterval(window.localizeSandboxTimes, 30 * 1000);
 });
@@ -715,9 +939,12 @@ document.body.addEventListener('htmx:afterSwap', function () {
   if (window.osbLifecycleActionActive) { window.osbLifecycleActionActive = false; }
   if (window.lucide) { lucide.createIcons(); }
   if (window.applySandboxFilter) { window.applySandboxFilter(); }
+  if (window.applySnapshotFilter) { window.applySnapshotFilter(); }
+  if (window.updatePrimaryNavigation) { window.updatePrimaryNavigation(); }
   if (window.localizeSandboxTimes) { window.localizeSandboxTimes(); }
   if (window.updatePageActions) { window.updatePageActions(); }
   if (window.applySandboxInfoPanel) { window.applySandboxInfoPanel(); }
   if (window.initializeSandboxDeleteButtons) { window.initializeSandboxDeleteButtons(); }
   if (window.initializeSandboxTerminal) { window.initializeSandboxTerminal(); }
+  if (window.restoreSandboxTerminalError) { window.restoreSandboxTerminalError(); }
 });

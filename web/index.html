@@ -6,7 +6,7 @@
     <meta name="description" content="A lightweight dashboard for OpenSandbox">
     <meta name="htmx-config" content='{"allowEval":false}'>
     <script src="/assets/boot.js"></script>
-    <title>{{if .SandboxID}}{{.SandboxID}} · {{end}}OpenSandbox Dashboard</title>
+    <title>{{if .SandboxID}}{{.SandboxID}} · {{else if .SnapshotID}}{{.SnapshotID}} · {{else if eq .Page "snapshots"}}Snapshots · {{end}}OpenSandbox Dashboard</title>
     <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/assets/vendor/ui/basecoat.min.css">
     <link rel="stylesheet" href="/assets/styles.css">
@@ -34,16 +34,16 @@
         </div>
 
         <nav class="sidebar-nav" aria-label="Primary navigation">
-          <a class="nav-item" href="/" aria-current="page">
+          <a class="nav-item" data-nav-page="sandboxes" href="/" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/" {{if or (eq .Page "list") (eq .Page "detail")}}aria-current="page"{{end}}>
             <span class="nav-item-icon"><i data-lucide="boxes"></i></span>
             <span class="nav-item-label">Sandboxes</span>
             <span id="sandbox-nav-count" class="nav-item-count">0</span>
           </a>
-          <span class="nav-item" aria-disabled="true">
+          <a class="nav-item" data-nav-page="snapshots" href="/snapshots" hx-get="/dashboard/snapshots" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/snapshots" {{if or (eq .Page "snapshots") (eq .Page "snapshot-detail")}}aria-current="page"{{end}}>
             <span class="nav-item-icon"><i data-lucide="layers-3"></i></span>
             <span class="nav-item-label">Snapshots</span>
-            <span class="nav-item-count">0</span>
-          </span>
+            <span id="snapshot-nav-count" class="nav-item-count">0</span>
+          </a>
           <span class="nav-item" aria-disabled="true">
             <span class="nav-item-icon"><i data-lucide="activity"></i></span>
             <span class="nav-item-label">Activity</span>
@@ -73,6 +73,12 @@
                 <a href="/" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/">Sandboxes</a>
                 <span class="topbar-breadcrumb-sep">/</span>
                 <span class="topbar-breadcrumb-current copyable-value" title="{{.SandboxID}}">{{.SandboxID}}</span>
+              {{else if .SnapshotID}}
+                <a href="/snapshots" hx-get="/dashboard/snapshots" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/snapshots">Snapshots</a>
+                <span class="topbar-breadcrumb-sep">/</span>
+                <span class="topbar-breadcrumb-current copyable-value" title="{{.SnapshotID}}">{{.SnapshotID}}</span>
+              {{else if eq .Page "snapshots"}}
+                <span class="topbar-breadcrumb-current">Snapshots</span>
               {{else}}
                 <span class="topbar-breadcrumb-current">Sandboxes</span>
               {{end}}
@@ -83,7 +89,7 @@
                   <button id="details-pane-toggle" class="icon-button" type="button" aria-controls="sandbox-detail-sidebar" aria-pressed="false" aria-label="Hide details pane" title="Hide details pane">
                     <i data-lucide="panel-right-close"></i>
                   </button>
-                {{else}}
+                {{else if eq .Page "list"}}
                   <button id="deploy-sandbox-button" class="icon-button sandbox-create-control" type="button" aria-label="Deploy a new sandbox" title="Deploy a new sandbox" data-open-create-modal>
                     <i data-lucide="plus"></i>
                   </button>
@@ -98,19 +104,19 @@
           <main>
             <section
               id="dashboard-content"
-              data-page="{{if .SandboxID}}detail{{else}}list{{end}}"
+              data-page="{{.Page}}"
               hx-get="{{.ContentURL}}"
               hx-trigger="load, dashboardRefresh"
               hx-swap="outerHTML"
               aria-live="polite"
             >
-              <div class="filter-tabs" aria-label="Loading sandbox filters">
+              <div class="filter-tabs" aria-label="Loading filters">
                 <span class="filter-pill skeleton-pill"></span>
                 <span class="filter-pill skeleton-pill"></span>
                 <span class="filter-pill skeleton-pill"></span>
                 <span class="filter-pill skeleton-pill"></span>
               </div>
-              <section class="sandbox-group" aria-label="Loading sandboxes">
+              <section class="sandbox-group" aria-label="Loading dashboard content">
                 <div class="group-header skeleton-header"></div>
                 <div class="sandbox-list">
                   <div class="sandbox-row loading-row">
@@ -146,8 +152,10 @@
         hx-indicator="this"
         hx-disabled-elt="#create-sandbox-form input, #create-sandbox-form button"
       >
+        <input name="snapshotId" type="hidden" value="">
+        <input name="snapshotName" type="hidden" value="">
         <header class="app-modal-header">
-          <span class="app-modal-icon" aria-hidden="true"><i data-lucide="box"></i></span>
+          <span id="create-sandbox-modal-icon" class="app-modal-icon" data-create-sandbox-icon aria-hidden="true"><i data-lucide="box"></i></span>
           <div>
             <h2 id="create-sandbox-modal-title">Create sandbox</h2>
           </div>
@@ -155,9 +163,10 @@
             <i data-lucide="x"></i>
           </button>
         </header>
-        <div class="app-modal-body">
+        <div id="deploy-snapshot-result"></div>
+        <div class="app-modal-body create-sandbox-fields">
           <div id="create-sandbox-error" class="app-form-error" role="alert" hidden></div>
-          <div class="app-form-field">
+          <div class="app-form-field" data-sandbox-image-field>
             <label for="sandbox-image">Container image</label>
             <span class="preset-input-control">
               <input id="sandbox-image" name="image" type="text" value="{{.SandboxImage}}" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true">
@@ -179,6 +188,10 @@
                 </button>
               </span>
             </span>
+          </div>
+          <div class="app-form-field" data-snapshot-source-field hidden>
+            <span>Snapshot</span>
+            <output id="sandbox-snapshot-source" class="app-form-static-value copyable-value"></output>
           </div>
           <div class="app-form-field">
             <label for="resource-preset-label">Resources</label>
@@ -205,10 +218,59 @@
             </span>
           </div>
         </div>
-        <footer class="app-modal-footer">
+        <footer class="app-modal-footer create-sandbox-actions">
           <button class="app-modal-button" data-variant="secondary" type="button" data-create-modal-close>Cancel</button>
           <button class="app-modal-button create-submit-button" data-variant="primary" type="submit">
             <span class="create-button-label">Create</span>
+            <span class="create-button-loading" aria-hidden="true"><i data-lucide="loader-circle"></i><span data-create-loading-label>Creating</span></span>
+          </button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="create-snapshot-modal" class="app-modal" aria-labelledby="create-snapshot-modal-title">
+      <form
+        id="create-snapshot-form"
+        class="app-modal-surface"
+        method="post"
+        action="/dashboard/snapshots"
+        autocomplete="off"
+        data-1p-ignore
+        data-lpignore="true"
+        data-form-type="other"
+        hx-post="/dashboard/snapshots"
+        hx-target="#create-snapshot-result"
+        hx-swap="innerHTML"
+        hx-indicator="this"
+        hx-disabled-elt="#create-snapshot-form input, #create-snapshot-form button"
+      >
+        <input name="sandboxID" type="hidden" value="">
+        <header class="app-modal-header">
+          <span id="create-snapshot-modal-icon" class="app-modal-icon" aria-hidden="true"><i data-lucide="layers-3"></i></span>
+          <div>
+            <h2 id="create-snapshot-modal-title">Create snapshot</h2>
+            <p>Save this sandbox state for later.</p>
+          </div>
+          <button class="app-modal-close" type="button" data-snapshot-modal-close aria-label="Close create snapshot form">
+            <i data-lucide="x"></i>
+          </button>
+        </header>
+        <div id="create-snapshot-result"></div>
+        <div class="app-modal-body snapshot-create-fields">
+          <div id="create-snapshot-error" class="app-form-error" role="alert" hidden></div>
+          <div class="app-form-field">
+            <span>Source sandbox</span>
+            <output id="snapshot-source-sandbox" class="app-form-static-value copyable-value"></output>
+          </div>
+          <div class="app-form-field">
+            <label for="snapshot-name">Name <span class="optional-label">Optional</span></label>
+            <input id="snapshot-name" name="name" type="text" placeholder="checkpoint-before-changes" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-form-type="other">
+          </div>
+        </div>
+        <footer class="app-modal-footer snapshot-create-actions">
+          <button class="app-modal-button" data-variant="secondary" type="button" data-snapshot-modal-close>Cancel</button>
+          <button class="app-modal-button create-submit-button" data-variant="primary" type="submit">
+            <span class="create-button-label">Create snapshot</span>
             <span class="create-button-loading" aria-hidden="true"><i data-lucide="loader-circle"></i>Creating</span>
           </button>
         </footer>

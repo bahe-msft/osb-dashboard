@@ -45,8 +45,8 @@ func TestReadAndWriteOperations(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 				t.Errorf("decode create request: %v", err)
 			}
-			if request.Image.URI != "python:3.12-slim" {
-				t.Errorf("image = %q", request.Image.URI)
+			if request.Image == nil || request.Image.URI != "python:3.12-slim" {
+				t.Errorf("image = %#v", request.Image)
 			}
 			w.WriteHeader(http.StatusAccepted)
 			_ = json.NewEncoder(w).Encode(apiSandbox{
@@ -491,10 +491,87 @@ func TestDeleteSandboxFallsBackToCustomResource(t *testing.T) {
 	}
 }
 
+func TestSnapshotOperations(t *testing.T) {
+	createdAt := time.Date(2026, time.July, 20, 12, 0, 0, 0, time.UTC)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/namespaces/control/secrets/api-key":
+			_ = json.NewEncoder(w).Encode(kubeSecret{Data: map[string]string{
+				"token": base64.StdEncoding.EncodeToString([]byte("test-key")),
+			}})
+		case r.URL.Path == "/api/v1/namespaces/control/services/http:lifecycle:http/proxy/snapshots" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(snapshotListResponse{
+				Items: []apiSnapshot{{
+					ID:        "snapshot-1",
+					SandboxID: "sandbox-1",
+					Name:      "checkpoint",
+					Status:    apiSnapshotStatus{State: "Ready"},
+					CreatedAt: createdAt,
+				}},
+			})
+		case r.URL.Path == "/api/v1/namespaces/control/services/http:lifecycle:http/proxy/sandboxes/sandbox-1/snapshots" && r.Method == http.MethodPost:
+			var request apiCreateSnapshotRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Errorf("decode snapshot request: %v", err)
+			}
+			if request.Name != "checkpoint" {
+				t.Errorf("snapshot name = %q", request.Name)
+			}
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(apiSnapshot{
+				ID:        "snapshot-2",
+				SandboxID: "sandbox-1",
+				Name:      request.Name,
+				Status:    apiSnapshotStatus{State: "Creating"},
+				CreatedAt: createdAt,
+			})
+		case r.URL.Path == "/api/v1/namespaces/control/services/http:lifecycle:http/proxy/snapshots/snapshot-1" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(apiSnapshot{
+				ID:        "snapshot-1",
+				SandboxID: "sandbox-1",
+				Name:      "checkpoint",
+				Status:    apiSnapshotStatus{State: "Ready"},
+				CreatedAt: createdAt,
+			})
+		case r.URL.Path == "/api/v1/namespaces/control/services/http:lifecycle:http/proxy/snapshots/snapshot-1" && r.Method == http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	combined, err := newClient(server.URL, server.Client(), Options{
+		Namespace:        "control",
+		ServiceName:      "lifecycle",
+		ServicePort:      "http",
+		APIKeySecretName: "api-key",
+		APIKeySecretKey:  "token",
+	}, nil)
+	if err != nil {
+		t.Fatalf("newClient() error = %v", err)
+	}
+	snapshots, err := combined.ListSnapshots(context.Background())
+	if err != nil || len(snapshots) != 1 || snapshots[0].State != "Ready" {
+		t.Fatalf("ListSnapshots() = %#v, %v", snapshots, err)
+	}
+	got, err := combined.GetSnapshot(context.Background(), "snapshot-1")
+	if err != nil || got.ID != "snapshot-1" || got.Name != "checkpoint" {
+		t.Fatalf("GetSnapshot() = %#v, %v", got, err)
+	}
+	created, err := combined.CreateSnapshot(context.Background(), "sandbox-1", "checkpoint")
+	if err != nil || created.ID != "snapshot-2" || created.State != "Creating" {
+		t.Fatalf("CreateSnapshot() = %#v, %v", created, err)
+	}
+	if err := combined.DeleteSnapshot(context.Background(), "snapshot-1"); err != nil {
+		t.Fatalf("DeleteSnapshot() error = %v", err)
+	}
+}
+
 func TestCreateSandboxValidation(t *testing.T) {
 	client := &client{}
 	_, err := client.CreateSandbox(context.Background(), CreateSandboxRequest{})
-	if err == nil || !strings.Contains(err.Error(), "image is required") {
+	if err == nil || !strings.Contains(err.Error(), "exactly one") {
 		t.Fatalf("CreateSandbox() error = %v", err)
 	}
 }

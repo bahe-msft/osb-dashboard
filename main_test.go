@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,18 +19,49 @@ import (
 
 type fakeSandboxService struct {
 	sandboxes []opensandbox.Sandbox
+	snapshots []opensandbox.Snapshot
+}
+
+type noBashSandboxService struct {
+	*fakeSandboxService
+}
+
+func (service *noBashSandboxService) RunCommand(ctx context.Context, sandboxID, command string) (opensandbox.CommandResult, error) {
+	if command == terminalShellProbeCommand {
+		return opensandbox.CommandResult{ExitCode: 1}, nil
+	}
+	return service.fakeSandboxService.RunCommand(ctx, sandboxID, command)
 }
 
 func (service *fakeSandboxService) ListSandboxes(context.Context) ([]opensandbox.Sandbox, error) {
 	return append([]opensandbox.Sandbox(nil), service.sandboxes...), nil
 }
 
+func (service *fakeSandboxService) ListSnapshots(context.Context) ([]opensandbox.Snapshot, error) {
+	return append([]opensandbox.Snapshot(nil), service.snapshots...), nil
+}
+
+func (service *fakeSandboxService) GetSnapshot(_ context.Context, snapshotID string) (opensandbox.Snapshot, error) {
+	for _, snapshot := range service.snapshots {
+		if snapshot.ID == snapshotID {
+			return snapshot, nil
+		}
+	}
+	return opensandbox.Snapshot{}, errors.New("snapshot not found")
+}
+
 func (service *fakeSandboxService) CreateSandbox(_ context.Context, request opensandbox.CreateSandboxRequest) (opensandbox.Sandbox, error) {
+	image := request.Image
+	state := "Running"
+	if request.SnapshotID != "" {
+		image = "restored:" + request.SnapshotID
+		state = "Pending"
+	}
 	sandbox := opensandbox.Sandbox{
 		ID:        "sandbox-created",
-		State:     "Running",
+		State:     state,
 		CreatedAt: time.Date(2026, time.July, 19, 12, 0, 0, 0, time.UTC),
-		Image:     request.Image,
+		Image:     image,
 		Metadata:  request.Metadata,
 		Sources:   []string{opensandbox.SourceLifecycle},
 	}
@@ -54,6 +86,28 @@ func (service *fakeSandboxService) ResumeSandbox(_ context.Context, sandboxID st
 	for index := range service.sandboxes {
 		if service.sandboxes[index].ID == sandboxID {
 			service.sandboxes[index].State = "Running"
+		}
+	}
+	return nil
+}
+
+func (service *fakeSandboxService) CreateSnapshot(_ context.Context, sandboxID, name string) (opensandbox.Snapshot, error) {
+	snapshot := opensandbox.Snapshot{
+		ID:        "snapshot-created",
+		SandboxID: sandboxID,
+		Name:      name,
+		State:     "Creating",
+		CreatedAt: time.Date(2026, time.July, 20, 12, 0, 0, 0, time.UTC),
+	}
+	service.snapshots = append(service.snapshots, snapshot)
+	return snapshot, nil
+}
+
+func (service *fakeSandboxService) DeleteSnapshot(_ context.Context, snapshotID string) error {
+	for index := range service.snapshots {
+		if service.snapshots[index].ID == snapshotID {
+			service.snapshots = append(service.snapshots[:index], service.snapshots[index+1:]...)
+			break
 		}
 	}
 	return nil
@@ -209,6 +263,27 @@ func TestCreateSandboxRequest(t *testing.T) {
 	}
 }
 
+func TestCreateSandboxRequestRestoresSnapshot(t *testing.T) {
+	app := &application{sandboxImage: "default:image"}
+	form := url.Values{
+		"snapshotId":     {"snapshot-ready"},
+		"resourcePreset": {"2core-4gib"},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/dashboard/sandboxes", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	result, err := app.createSandboxRequest(request)
+	if err != nil {
+		t.Fatalf("createSandboxRequest() error = %v", err)
+	}
+	if result.SnapshotID != "snapshot-ready" || result.Image != "" || len(result.Entrypoint) != 0 {
+		t.Errorf("createSandboxRequest() = %#v", result)
+	}
+	if result.ResourceLimits["cpu"] != "2" || result.ResourceLimits["memory"] != "4Gi" {
+		t.Errorf("ResourceLimits = %#v", result.ResourceLimits)
+	}
+}
+
 func TestCreateSandboxRequestRejectsInvalidResourcePreset(t *testing.T) {
 	app := &application{sandboxImage: "default:image"}
 	request := httptest.NewRequest(http.MethodPost, "/dashboard/sandboxes", strings.NewReader("resourcePreset=invalid"))
@@ -308,6 +383,154 @@ func TestNewOverviewDataUsesEmptyStateWhenThereAreNoSandboxes(t *testing.T) {
 	}
 }
 
+func TestTerminalPropagatesMissingBashError(t *testing.T) {
+	service := &noBashSandboxService{fakeSandboxService: &fakeSandboxService{}}
+	app, err := newApplication(
+		"/tmp/test-kubeconfig",
+		service,
+		service,
+		service,
+		service,
+		"python:3.12-slim",
+		context.Background(),
+	)
+	if err != nil {
+		t.Fatalf("newApplication() error = %v", err)
+	}
+	server := httptest.NewServer(app.routes())
+	defer server.Close()
+
+	websocketURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/dashboard/sandboxes/no-bash/terminal/pty"
+	connection, _, err := websocket.Dial(context.Background(), websocketURL, nil)
+	if err != nil {
+		t.Fatalf("dial terminal WebSocket: %v", err)
+	}
+	defer connection.Close(websocket.StatusNormalClosure, "")
+
+	messageType, message, err := connection.Read(context.Background())
+	if err != nil {
+		t.Fatalf("read terminal error: %v", err)
+	}
+	if messageType != websocket.MessageText || !strings.Contains(string(message), "Bash is not installed") {
+		t.Errorf("terminal message = %q", message)
+	}
+}
+
+func TestSnapshotRoutes(t *testing.T) {
+	service := &fakeSandboxService{sandboxes: []opensandbox.Sandbox{{
+		ID:        "sandbox-running",
+		State:     "Running",
+		CreatedAt: time.Date(2026, time.July, 20, 11, 0, 0, 0, time.UTC),
+		Sources:   []string{opensandbox.SourceLifecycle},
+	}}}
+	app, err := newApplication(
+		"/tmp/test-kubeconfig",
+		service,
+		service,
+		service,
+		service,
+		"python:3.12-slim",
+		context.Background(),
+	)
+	if err != nil {
+		t.Fatalf("newApplication() error = %v", err)
+	}
+
+	form := url.Values{"sandboxID": {"sandbox-running"}, "name": {"before-upgrade"}}
+	request := httptest.NewRequest(http.MethodPost, "/dashboard/snapshots", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("create snapshot status = %d, want %d", response.Code, http.StatusOK)
+	}
+	if got := response.Header().Get("HX-Trigger"); got != "snapshotCreated" {
+		t.Errorf("HX-Trigger = %q", got)
+	}
+	if got := response.Header().Get("HX-Push-Url"); got != "" {
+		t.Errorf("HX-Push-Url = %q, want empty", got)
+	}
+	if !strings.Contains(response.Body.String(), "Creating snapshot") || !strings.Contains(response.Body.String(), "before-upgrade") || !strings.Contains(response.Body.String(), "Run in background") || !strings.Contains(response.Body.String(), "hx-trigger=\"load delay:2s\"") {
+		t.Errorf("create snapshot response = %s", response.Body.String())
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/dashboard/snapshots/snapshot-created/status", nil)
+	response = httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Creating snapshot") || !strings.Contains(response.Body.String(), "hx-trigger=\"load delay:2s\"") {
+		t.Errorf("creating snapshot status = %d, response = %s", response.Code, response.Body.String())
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/snapshots/snapshot-created", nil)
+	response = httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "hx-get=\"/dashboard/snapshots/snapshot-created/fragment\"") {
+		t.Errorf("snapshot detail page status = %d, response = %s", response.Code, response.Body.String())
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/dashboard/snapshots/snapshot-created/fragment", nil)
+	response = httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "before-upgrade") || !strings.Contains(response.Body.String(), "Snapshot details") {
+		t.Errorf("snapshot detail fragment status = %d, response = %s", response.Code, response.Body.String())
+	}
+
+	service.snapshots[0].State = "Ready"
+	service.snapshots[0].Message = "Snapshot is ready."
+	request = httptest.NewRequest(http.MethodGet, "/dashboard/snapshots/snapshot-created/status", nil)
+	response = httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Snapshot ready") || strings.Contains(response.Body.String(), "hx-trigger=\"load delay:2s\"") {
+		t.Errorf("ready snapshot status = %d, response = %s", response.Code, response.Body.String())
+	}
+
+	deployForm := url.Values{
+		"snapshotId":     {"snapshot-created"},
+		"snapshotName":   {"before-upgrade"},
+		"resourcePreset": {"1core-2gib"},
+	}
+	request = httptest.NewRequest(http.MethodPost, "/dashboard/sandboxes", strings.NewReader(deployForm.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response = httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+	app.background.Wait()
+	if response.Code != http.StatusOK || response.Header().Get("HX-Trigger") != "sandboxDeploymentStarted" || !strings.Contains(response.Body.String(), "Deploying sandbox from snapshot") || !strings.Contains(response.Body.String(), "Run in background") || !strings.Contains(response.Body.String(), "load delay:2s") {
+		t.Errorf("deploy snapshot status = %d, headers = %#v, response = %s", response.Code, response.Header(), response.Body.String())
+	}
+	if got := response.Header().Get("HX-Push-Url"); got != "" {
+		t.Errorf("deploy snapshot HX-Push-Url = %q, want empty", got)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/dashboard/sandboxes/sandbox-created/deployment-status?snapshotId=snapshot-created&snapshotName=before-upgrade", nil)
+	response = httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Deploying sandbox from snapshot") || !strings.Contains(response.Body.String(), "Run in background") {
+		t.Errorf("pending deployment status = %d, response = %s", response.Code, response.Body.String())
+	}
+	for index := range service.sandboxes {
+		if service.sandboxes[index].ID == "sandbox-created" {
+			service.sandboxes[index].State = "Running"
+		}
+	}
+	request = httptest.NewRequest(http.MethodGet, "/dashboard/sandboxes/sandbox-created/deployment-status?snapshotId=snapshot-created&snapshotName=before-upgrade", nil)
+	response = httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Sandbox deployed") || !strings.Contains(response.Body.String(), "View sandbox") || strings.Contains(response.Body.String(), "load delay:2s") {
+		t.Errorf("ready deployment status = %d, response = %s", response.Code, response.Body.String())
+	}
+
+	app.invalidateSnapshotCache()
+	request = httptest.NewRequest(http.MethodDelete, "/dashboard/snapshots/snapshot-created", nil)
+	response = httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("delete snapshot status = %d, want %d", response.Code, http.StatusOK)
+	}
+	if len(service.snapshots) != 0 || !strings.Contains(response.Body.String(), "No snapshots yet") {
+		t.Errorf("delete snapshot response = %s; snapshots = %#v", response.Body.String(), service.snapshots)
+	}
+}
+
 func TestRoutes(t *testing.T) {
 	service := &fakeSandboxService{}
 	app, err := newApplication(
@@ -345,6 +568,20 @@ func TestRoutes(t *testing.T) {
 			contentType:    "text/html; charset=utf-8",
 			contains:       "Deploy a new sandbox",
 			doesNotContain: "OpenSandbox API not configured",
+		},
+		{
+			name:        "snapshots page",
+			method:      http.MethodGet,
+			path:        "/snapshots",
+			contentType: "text/html; charset=utf-8",
+			contains:    "hx-get=\"/dashboard/snapshots\"",
+		},
+		{
+			name:        "snapshots fragment",
+			method:      http.MethodGet,
+			path:        "/dashboard/snapshots",
+			contentType: "text/html; charset=utf-8",
+			contains:    "No snapshots yet",
 		},
 		{
 			name:        "create sandbox",

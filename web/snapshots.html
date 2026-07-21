@@ -1,0 +1,131 @@
+<title>Snapshots · OpenSandbox Dashboard</title>
+<section
+  id="dashboard-content"
+  data-page="snapshots"
+  hx-get="/dashboard/snapshots"
+  hx-trigger="dashboardRefresh"
+  hx-swap="outerHTML"
+  aria-live="polite"
+>
+<div id="navigation-title" class="topbar-breadcrumb" hx-swap-oob="true">
+  <span class="topbar-breadcrumb-current">Snapshots</span>
+</div>
+<span id="page-toolbar-action" class="toolbar-action" hx-swap-oob="true"></span>
+<span id="sandbox-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SandboxTotal}}</span>
+<span id="snapshot-nav-count" class="nav-item-count" hx-swap-oob="true">{{.Total}}</span>
+
+<div class="filter-tabs" aria-label="Filter snapshots by state">
+  <button class="filter-pill" type="button" data-snapshot-state-filter="all" data-active="true" aria-pressed="true">
+    All <span class="count">&nbsp;{{.Total}}</span>
+  </button>
+  {{range .StateCounts}}
+    <button class="filter-pill" type="button" data-snapshot-state-filter="{{.State}}" aria-pressed="false">
+      {{.State}} <span class="count">&nbsp;{{.Count}}</span>
+    </button>
+  {{end}}
+</div>
+
+{{if .Error}}
+  <div class="dashboard-error" role="alert">
+    <i data-lucide="circle-alert" aria-hidden="true"></i>
+    <span>{{.Error}}</span>
+  </div>
+{{end}}
+
+<div class="state-groups snapshot-state-groups">
+  {{range .Groups}}
+    <section class="sandbox-group snapshot-group" data-snapshot-state="{{.State}}" aria-labelledby="snapshot-group-{{.State}}-title">
+      <input class="group-toggle" id="snapshot-group-{{.State}}-toggle" type="checkbox" checked>
+      <label for="snapshot-group-{{.State}}-toggle">
+        <span class="group-header">
+          <span class="group-title" id="snapshot-group-{{.State}}-title">
+            <span class="chevron" aria-hidden="true"><i data-lucide="chevron-down"></i></span>
+            <strong>{{.Label}}</strong>
+            <span class="count">{{len .Snapshots}}</span>
+          </span>
+        </span>
+      </label>
+
+      <div class="snapshot-list">
+        {{range .Snapshots}}
+          <article class="snapshot-row" data-snapshot-id="{{.ID}}" role="link" tabindex="0" aria-label="Open snapshot {{.Name}}">
+            <span class="status-ring" data-status="{{.State}}" aria-hidden="true"></span>
+            <a
+              class="snapshot-headline"
+              data-snapshot-row-link
+              href="/snapshots/{{urlquery .ID}}"
+              hx-get="/dashboard/snapshots/{{urlquery .ID}}/fragment"
+              hx-target="#dashboard-content"
+              hx-swap="outerHTML"
+              hx-push-url="/snapshots/{{urlquery .ID}}"
+              aria-label="Open snapshot {{.Name}}"
+            >
+              <strong {{if not .HasName}}title="{{.ID}}"{{end}}>{{.Name}}</strong>
+              {{if .HasName}}<span class="snapshot-id" title="{{.ID}}">{{.ID}}</span>{{end}}
+            </a>
+            <div class="snapshot-source">
+              <span>Source</span>
+              {{if .SourceSandboxAvailable}}
+                <a
+                  href="/dashboard/sandboxes/{{urlquery .SandboxID}}"
+                  hx-get="/dashboard/sandboxes/{{urlquery .SandboxID}}/fragment"
+                  hx-target="#dashboard-content"
+                  hx-swap="outerHTML"
+                  hx-push-url="/dashboard/sandboxes/{{urlquery .SandboxID}}"
+                  title="Open source sandbox"
+                >{{.SandboxID}}</a>
+              {{else}}
+                <span title="{{.SandboxID}}">{{.SandboxID}}</span>
+              {{end}}
+            </div>
+            <div class="snapshot-row-actions">
+              {{if .CanRestore}}
+                <button
+                  class="snapshot-action-button"
+                  type="button"
+                  data-restore-snapshot
+                  data-snapshot-id="{{.ID}}"
+                  data-snapshot-name="{{.Name}}"
+                  aria-label="Deploy snapshot {{.Name}}"
+                  title="Deploy as a new sandbox"
+                ><i data-lucide="archive-restore" aria-hidden="true"></i></button>
+              {{end}}
+              <button
+                class="snapshot-action-button"
+                type="button"
+                {{if not .CanDelete}}disabled{{end}}
+                aria-label="Delete snapshot {{.Name}}"
+                title="{{if .CanDelete}}Delete snapshot{{else}}Snapshot cannot be deleted while {{.State}}{{end}}"
+                hx-delete="/dashboard/snapshots/{{urlquery .ID}}"
+                hx-target="#dashboard-content"
+                hx-swap="outerHTML"
+                hx-indicator="this"
+                hx-disabled-elt="this"
+                hx-confirm="Deleting snapshot {{.ID}} cannot be undone."
+                data-confirm-title="Delete snapshot?"
+                data-confirm-label="Delete"
+                data-confirm-variant="danger"
+              ><i data-lucide="trash-2" aria-hidden="true"></i></button>
+              <time datetime="{{.CreatedAtISO}}" data-created-time>created {{.CreatedAtFallback}}</time>
+            </div>
+          </article>
+        {{end}}
+      </div>
+    </section>
+  {{end}}
+
+  {{if .Groups}}
+    <div class="filtered-empty-state" data-snapshot-filter-empty hidden>
+      <span class="empty-state-icon" aria-hidden="true"><i data-lucide="list-filter"></i></span>
+      <h2>No snapshots in this state</h2>
+      <p>Choose another snapshot state.</p>
+    </div>
+  {{else}}
+    <div class="empty-state snapshot-empty-state">
+      <span class="empty-state-icon" aria-hidden="true"><i data-lucide="layers-3"></i></span>
+      <h2>No snapshots yet</h2>
+      <p>Create a snapshot from a running sandbox’s actions menu.</p>
+    </div>
+  {{end}}
+</div>
+</section>

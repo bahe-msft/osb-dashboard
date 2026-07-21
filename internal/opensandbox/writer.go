@@ -13,12 +13,14 @@ import (
 	"time"
 )
 
-// CreateSandbox creates an image-backed sandbox.
+// CreateSandbox creates an image-backed sandbox or restores one from a snapshot.
 func (client *client) CreateSandbox(ctx context.Context, request CreateSandboxRequest) (Sandbox, error) {
-	if strings.TrimSpace(request.Image) == "" {
-		return Sandbox{}, errors.New("sandbox image is required")
+	hasImage := strings.TrimSpace(request.Image) != ""
+	hasSnapshot := strings.TrimSpace(request.SnapshotID) != ""
+	if hasImage == hasSnapshot {
+		return Sandbox{}, errors.New("exactly one of sandbox image or snapshot ID is required")
 	}
-	if len(request.Entrypoint) == 0 {
+	if hasImage && len(request.Entrypoint) == 0 {
 		return Sandbox{}, errors.New("sandbox entrypoint is required")
 	}
 	if request.Timeout < 0 {
@@ -29,10 +31,13 @@ func (client *client) CreateSandbox(ctx context.Context, request CreateSandboxRe
 	}
 
 	payload := apiCreateRequest{
-		Image:          apiSandboxImage{URI: request.Image},
+		SnapshotID:     strings.TrimSpace(request.SnapshotID),
 		Entrypoint:     request.Entrypoint,
 		ResourceLimits: request.ResourceLimits,
 		Metadata:       request.Metadata,
+	}
+	if hasImage {
+		payload.Image = &apiSandboxImage{URI: strings.TrimSpace(request.Image)}
 	}
 	if request.Timeout > 0 {
 		timeoutSeconds := int(request.Timeout.Seconds())
@@ -84,6 +89,7 @@ func (client *client) CreateSandbox(ctx context.Context, request CreateSandboxRe
 		slog.String("sandbox_id", model.ID),
 		slog.String("sandbox_state", model.State),
 		slog.String("image", request.Image),
+		slog.String("snapshot_id", request.SnapshotID),
 	)
 	return model, nil
 }

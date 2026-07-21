@@ -24,9 +24,16 @@ async page => {
   if (!await page.getByRole('link', { name: /Sandboxes/ }).first().isVisible()) {
     throw new Error('Sandboxes navigation is not visible');
   }
+  await page.getByRole('link', { name: /Snapshots/ }).click();
+  await page.locator('#dashboard-content[data-page="snapshots"]').waitFor({ state: 'visible' });
+  if (!await page.getByRole('button', { name: /All/ }).isVisible()) {
+    throw new Error('Snapshots page did not render');
+  }
+  await page.getByRole('link', { name: /Sandboxes/ }).first().click();
+  await page.locator('#dashboard-content[data-page="list"]').waitFor({ state: 'visible' });
   return {
     category: 'Application shell',
-    passed: 1,
-    tests: ['health endpoint and overview render'],
+    passed: 2,
+    tests: ['health endpoint and overview render', 'snapshots navigation and page render'],
   };
 }

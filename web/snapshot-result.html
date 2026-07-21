@@ -1,0 +1,59 @@
+{{define "snapshot-result-status"}}
+<span id="create-snapshot-modal-icon" class="app-modal-icon" data-state="{{.StateKey}}" aria-hidden="true" hx-swap-oob="true">
+  {{if .Ready}}
+    <i data-lucide="circle-check"></i>
+  {{else if .Failed}}
+    <i data-lucide="circle-alert"></i>
+  {{else}}
+    <i data-lucide="loader-circle"></i>
+  {{end}}
+</span>
+<div
+  id="snapshot-create-result-content"
+  data-snapshot-state="{{.StateKey}}"
+  data-snapshot-id="{{.ID}}"
+  {{if .Polling}}
+    hx-get="/dashboard/snapshots/{{urlquery .ID}}/status"
+    hx-trigger="load delay:2s"
+    hx-target="this"
+    hx-swap="outerHTML"
+  {{end}}
+>
+  <div class="app-modal-body snapshot-create-result" role="status" aria-live="polite">
+    <div>
+      {{if .Ready}}
+        <h3>Snapshot ready</h3>
+      {{else if .Failed}}
+        <h3>Snapshot creation failed</h3>
+      {{else}}
+        <h3>{{if eq .StateKey "checking"}}Checking snapshot status{{else}}Creating snapshot{{end}}</h3>
+      {{end}}
+      <p class="operation-resource-reference"><span>Snapshot:</span> <code title="{{.ID}}">{{.Name}}</code></p>
+    </div>
+  </div>
+  <footer class="app-modal-footer modal-operation-footer">
+    {{if .Ready}}
+      <button
+        class="app-modal-button"
+        data-variant="secondary"
+        type="button"
+        data-view-snapshot
+        hx-get="/dashboard/snapshots/{{urlquery .ID}}/fragment"
+        hx-target="#dashboard-content"
+        hx-swap="outerHTML"
+        hx-push-url="/snapshots/{{urlquery .ID}}"
+      >View snapshot</button>
+      <button class="app-modal-button" data-variant="primary" type="button" data-snapshot-modal-close>Done</button>
+    {{else if .Polling}}
+      <button class="app-modal-button" data-variant="primary" type="button" data-snapshot-modal-close>Run in background</button>
+    {{else}}
+      <button class="app-modal-button" data-variant="primary" type="button" data-snapshot-modal-close>Done</button>
+    {{end}}
+  </footer>
+</div>
+{{end}}
+
+{{define "snapshot-result"}}
+<span id="snapshot-nav-count" class="nav-item-count" hx-swap-oob="true">{{.Total}}</span>
+{{template "snapshot-result-status" .}}
+{{end}}
