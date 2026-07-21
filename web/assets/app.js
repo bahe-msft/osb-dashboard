@@ -640,6 +640,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if (stats && (animate || stats.dataset.statsLoaded !== 'true')) {
           htmx.trigger(stats, 'statsRefresh');
         }
+      } else if (selected === 'events' && window.htmx) {
+        var events = document.getElementById('sandbox-events');
+        if (events && (animate || events.dataset.eventsLoaded !== 'true')) {
+          htmx.trigger(events, 'eventsRefresh');
+        }
       }
     }
   };
@@ -738,6 +743,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (content && content.dataset.page === 'detail' && window.osbSandboxInfoPanel === 'stats') {
       var stats = document.getElementById('sandbox-live-stats');
       if (stats) { htmx.trigger(stats, 'statsRefresh'); }
+      return;
+    }
+    if (content && content.dataset.page === 'detail' && window.osbSandboxInfoPanel === 'events') {
+      var events = document.getElementById('sandbox-events');
+      if (events) { htmx.trigger(events, 'eventsRefresh'); }
       return;
     }
     if (window.osbTerminalActive === true) { return; }

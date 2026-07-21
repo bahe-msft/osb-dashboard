@@ -87,5 +87,40 @@
         </div>
       {{end}}
     </section>
+
+    <section class="cluster-node-panel cluster-events-panel" aria-labelledby="cluster-events-title">
+      <header>
+        <div>
+          <h1 id="cluster-events-title">Recent sandbox events</h1>
+          <p>Latest Kubernetes events across active sandbox pods.</p>
+        </div>
+      </header>
+      {{if .RecentEvents}}
+        <div class="cluster-events-table" role="table" aria-label="Recent sandbox events">
+          <div class="cluster-events-table-header" role="row">
+            <span role="columnheader">Time</span>
+            <span role="columnheader">Sandbox</span>
+            <span role="columnheader">Event</span>
+            <span role="columnheader">Message</span>
+            <span role="columnheader">Count</span>
+          </div>
+          {{range .RecentEvents}}
+            <div class="cluster-events-row" role="row" data-event-type="{{.Type}}">
+              <time role="cell" datetime="{{.LastSeenISO}}" data-created-time data-no-prefix>{{.LastSeenFallback}}</time>
+              <a role="cell" href="/dashboard/sandboxes/{{urlquery .SandboxID}}" hx-get="/dashboard/sandboxes/{{urlquery .SandboxID}}/fragment" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/dashboard/sandboxes/{{urlquery .SandboxID}}" title="{{.SandboxID}}">{{.SandboxIDShort}}</a>
+              <span role="cell" class="cluster-event-reason"><strong>{{.Reason}}</strong><small>{{.Type}}</small></span>
+              <span role="cell" class="cluster-event-message" title="{{.Message}}">{{.Message}}</span>
+              <span role="cell" class="cluster-event-count">{{.Count}}</span>
+            </div>
+          {{end}}
+        </div>
+      {{else}}
+        <div class="cluster-stats-empty">
+          <span aria-hidden="true"><i data-lucide="list-checks"></i></span>
+          <strong>No recent sandbox events</strong>
+          <p>Kubernetes events appear here as sandbox pods change.</p>
+        </div>
+      {{end}}
+    </section>
   </div>
 </section>

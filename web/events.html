@@ -1,0 +1,44 @@
+<div
+  id="sandbox-events"
+  class="sandbox-events"
+  data-events-loaded="true"
+  hx-get="/dashboard/sandboxes/{{urlquery .SandboxID}}/events"
+  hx-trigger="eventsRefresh"
+  hx-swap="outerHTML"
+  hx-indicator="this"
+  aria-live="polite"
+>
+  {{if .Error}}
+    <div class="sandbox-events-error" role="alert">
+      <i data-lucide="circle-alert" aria-hidden="true"></i>
+      <span>{{.Error}}</span>
+    </div>
+  {{end}}
+
+  {{if .Events}}
+    <div class="sandbox-event-list">
+      {{range .Events}}
+        <article class="sandbox-event" data-event-type="{{.Type}}">
+          <span class="sandbox-event-icon" aria-hidden="true">
+            {{if eq .Type "Warning"}}<i data-lucide="triangle-alert"></i>{{else}}<i data-lucide="circle-check"></i>{{end}}
+          </span>
+          <div class="sandbox-event-body">
+            <header>
+              <strong>{{.Reason}}</strong>
+              {{if gt .Count 1}}<span class="sandbox-event-count">×{{.Count}}</span>{{end}}
+              {{if .LastSeenISO}}<time datetime="{{.LastSeenISO}}" data-created-time data-no-prefix>{{.LastSeenFallback}}</time>{{end}}
+            </header>
+            <p>{{.Message}}</p>
+            {{if .Source}}<small>{{.Source}}</small>{{end}}
+          </div>
+        </article>
+      {{end}}
+    </div>
+  {{else if not .Error}}
+    <div class="sandbox-events-empty">
+      <span aria-hidden="true"><i data-lucide="{{if .PodName}}list-checks{{else}}circle-off{{end}}"></i></span>
+      <strong>{{if .PodName}}No pod events{{else}}No active pod{{end}}</strong>
+      <p>{{if .PodName}}Kubernetes has not reported events for this pod.{{else}}Events appear after a sandbox pod is scheduled.{{end}}</p>
+    </div>
+  {{end}}
+</div>

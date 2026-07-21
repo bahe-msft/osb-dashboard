@@ -63,8 +63,16 @@ async page => {
     page.off('response', countStats);
   }
   await page.screenshot({ path: `.playwright/e2e/${config.runID}/live-stats.png`, fullPage: true });
-  await selectPanel('Details');
   results.push('live stats load and refresh from the sandbox');
+
+  await selectPanel('Events');
+  await page.locator('#sandbox-events[data-events-loaded="true"]').waitFor({ state: 'visible', timeout: 30_000 });
+  if (!await page.locator('.sandbox-event, .sandbox-events-empty').count()) {
+    throw new Error('pod events panel did not render a result');
+  }
+  await page.screenshot({ path: `.playwright/e2e/${config.runID}/pod-events.png`, fullPage: true });
+  results.push('pod events load independently from the terminal workspace');
+  await selectPanel('Details');
 
   return { category: 'Sandbox details', passed: results.length, tests: results };
 }

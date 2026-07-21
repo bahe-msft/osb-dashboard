@@ -44,13 +44,13 @@ The following variables are optional:
 - **Application shell**: health endpoint, HTMX overview, snapshot navigation, and cluster stats rendering
 - **Navigation and preferences**: stable sidebar collapse and persisted theme
 - **Sandbox lifecycle**: create a sandbox and delete it through the dashboard
-- **Sandbox details**: running state, property layout, and live stats refresh
+- **Sandbox details**: running state, property layout, live stats refresh, and aggregated Kubernetes pod events
 - **Pause and resume**: lifecycle pause, paused terminal state, resume, restored terminal availability, and root-filesystem persistence
 - **Snapshots**: in-modal snapshot creation polling, snapshot details, in-modal deployment polling, explicit navigation, and cleanup
 - **Terminal**: WebSocket connection, command execution, and connection
   preservation while switching between Details and Stats
 
-The suite currently contains eighteen tests split into ordered category files under
+The suite currently contains nineteen tests split into ordered category files under
 `e2e/tests/`. Tests are intentionally serial because later categories operate on
 the sandbox created by the lifecycle category.
 

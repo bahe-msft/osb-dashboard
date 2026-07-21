@@ -321,6 +321,38 @@ users:
 	}
 }
 
+func TestListPodEventsAggregatesRepeatedEvents(t *testing.T) {
+	first := time.Date(2026, time.July, 21, 12, 0, 0, 0, time.UTC)
+	last := first.Add(2 * time.Minute)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/namespaces/workloads/events" || !strings.Contains(r.URL.Query().Get("fieldSelector"), "involvedObject.name=sandbox-1-0") {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(kubernetesEventList{Items: []kubernetesEvent{
+			{Type: "Warning", Reason: "FailedScheduling", Message: "Insufficient cpu", Count: 0, FirstTimestamp: first, LastTimestamp: first, Source: kubernetesEventSource{Component: "scheduler"}},
+			{Type: "Warning", Reason: "FailedScheduling", Message: "Insufficient cpu", Count: 2, FirstTimestamp: first.Add(time.Minute), LastTimestamp: last, ReportingController: "default-scheduler"},
+			{Type: "Normal", Reason: "Scheduled", Message: "Assigned to node-a", Count: 1, LastTimestamp: first.Add(90 * time.Second)},
+		}})
+	}))
+	defer server.Close()
+
+	client, err := newClient(server.URL, server.Client(), Options{WorkloadNamespace: "workloads"}, nil)
+	if err != nil {
+		t.Fatalf("newClient() error = %v", err)
+	}
+	events, err := client.ListPodEvents(context.Background(), "sandbox-1-0")
+	if err != nil {
+		t.Fatalf("ListPodEvents() error = %v", err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("ListPodEvents() = %#v", events)
+	}
+	if events[0].Reason != "FailedScheduling" || events[0].Count != 3 || !events[0].FirstSeen.Equal(first) || !events[0].LastSeen.Equal(last) || events[0].Source != "default-scheduler" {
+		t.Errorf("aggregated event = %#v", events[0])
+	}
+}
+
 func TestListSandboxNodeLoads(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

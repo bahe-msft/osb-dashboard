@@ -32,6 +32,8 @@ type Reader interface {
 	ListSnapshots(context.Context) ([]Snapshot, error)
 	GetSnapshot(context.Context, string) (Snapshot, error)
 	ListSandboxNodeLoads(context.Context) ([]SandboxNodeLoad, error)
+	ListPodEvents(context.Context, string) ([]SandboxEvent, error)
+	ListRecentSandboxEvents(context.Context, []Sandbox) ([]SandboxEvent, error)
 }
 
 // Writer defines state-changing OpenSandbox operations.

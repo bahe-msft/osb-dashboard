@@ -144,6 +144,7 @@
           <span id="sandbox-info-popover" class="sandbox-info-popover" role="menu" hidden>
             <button type="button" role="menuitemradio" aria-checked="true" data-sandbox-info-panel="details" data-sandbox-info-panel-icon="info"><i data-lucide="info" aria-hidden="true"></i><span>Details</span></button>
             <button type="button" role="menuitemradio" aria-checked="false" data-sandbox-info-panel="stats" data-sandbox-info-panel-icon="square-activity"><i data-lucide="square-activity" aria-hidden="true"></i><span>Stats</span></button>
+            <button type="button" role="menuitemradio" aria-checked="false" data-sandbox-info-panel="events" data-sandbox-info-panel-icon="list-tree"><i data-lucide="list-tree" aria-hidden="true"></i><span>Events</span></button>
             {{if .Metadata}}<button type="button" role="menuitemradio" aria-checked="false" data-sandbox-info-panel="metadata" data-sandbox-info-panel-icon="braces"><i data-lucide="braces" aria-hidden="true"></i><span>Metadata</span></button>{{end}}
           </span>
         </span>
@@ -179,6 +180,7 @@
             <span id="sandbox-info-popover-narrow" class="sandbox-info-popover" role="menu" hidden>
               <button type="button" role="menuitemradio" aria-checked="true" data-sandbox-info-panel="details" data-sandbox-info-panel-icon="info"><i data-lucide="info" aria-hidden="true"></i><span>Details</span></button>
               <button type="button" role="menuitemradio" aria-checked="false" data-sandbox-info-panel="stats" data-sandbox-info-panel-icon="square-activity"><i data-lucide="square-activity" aria-hidden="true"></i><span>Stats</span></button>
+              <button type="button" role="menuitemradio" aria-checked="false" data-sandbox-info-panel="events" data-sandbox-info-panel-icon="list-tree"><i data-lucide="list-tree" aria-hidden="true"></i><span>Events</span></button>
               {{if .Metadata}}<button type="button" role="menuitemradio" aria-checked="false" data-sandbox-info-panel="metadata" data-sandbox-info-panel-icon="braces"><i data-lucide="braces" aria-hidden="true"></i><span>Metadata</span></button>{{end}}
             </span>
           </span>
@@ -250,6 +252,24 @@
                   <progress class="sandbox-usage-meter" value="0" max="100" aria-label="Memory utilization loading"></progress>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="sandbox-detail-section" data-sandbox-info-content="events" aria-label="Events" hidden>
+          <div
+            id="sandbox-events"
+            class="sandbox-events"
+            data-events-loaded="false"
+            hx-get="/dashboard/sandboxes/{{urlquery .ID}}/events"
+            hx-trigger="eventsRefresh"
+            hx-swap="outerHTML"
+            hx-indicator="this"
+            aria-live="polite"
+          >
+            <div class="sandbox-events-empty">
+              <span aria-hidden="true"><i data-lucide="loader-circle"></i></span>
+              <strong>Loading pod events</strong>
             </div>
           </div>
         </section>

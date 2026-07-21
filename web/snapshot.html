@@ -92,7 +92,10 @@
                   hx-push-url="/dashboard/sandboxes/{{urlquery .SandboxID}}"
                 >{{.SandboxID}}</a>
               {{else}}
-                <strong class="sandbox-detail-property-value copyable-value" title="{{.SandboxID}}">{{.SandboxID}}</strong>
+                <span class="snapshot-detail-deleted-source">
+                  <strong class="sandbox-detail-property-value copyable-value" title="{{.SandboxID}}">{{.SandboxID}}</strong>
+                  <em class="snapshot-source-deleted">(deleted)</em>
+                </span>
               {{end}}
             </div>
           </div>

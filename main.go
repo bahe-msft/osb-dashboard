@@ -104,6 +104,7 @@ type application struct {
 	snapshotResultTemplate   *template.Template
 	deploymentResultTemplate *template.Template
 	clusterStatsTemplate     *template.Template
+	eventsTemplate           *template.Template
 	statsTemplate            *template.Template
 	sandboxReader            opensandbox.Reader
 	sandboxWriter            opensandbox.Writer
@@ -213,7 +214,27 @@ type clusterStatsData struct {
 	NodeTotal        int
 	SandboxesPerNode string
 	Nodes            []clusterStatsNodeView
+	RecentEvents     []sandboxEventView
 	Error            string
+}
+
+type sandboxEventView struct {
+	SandboxID        string
+	SandboxIDShort   string
+	Type             string
+	Reason           string
+	Message          string
+	Source           string
+	Count            int32
+	LastSeenISO      string
+	LastSeenFallback string
+}
+
+type sandboxEventsData struct {
+	SandboxID string
+	PodName   string
+	Events    []sandboxEventView
+	Error     string
 }
 
 type sandboxStatsData struct {
@@ -234,6 +255,7 @@ type sandboxStatsData struct {
 type snapshotView struct {
 	ID                       string
 	SandboxID                string
+	SandboxIDShort           string
 	Name                     string
 	HasName                  bool
 	State                    string
@@ -573,6 +595,11 @@ func newApplication(
 		return nil, fmt.Errorf("parse cluster stats template: %w", err)
 	}
 
+	eventsTemplate, err := template.ParseFS(webFiles, "web/events.html")
+	if err != nil {
+		return nil, fmt.Errorf("parse events template: %w", err)
+	}
+
 	statsTemplate, err := template.ParseFS(webFiles, "web/stats.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse stats template: %w", err)
@@ -589,6 +616,7 @@ func newApplication(
 		snapshotResultTemplate:   snapshotResultTemplate,
 		deploymentResultTemplate: deploymentResultTemplate,
 		clusterStatsTemplate:     clusterStatsTemplate,
+		eventsTemplate:           eventsTemplate,
 		statsTemplate:            statsTemplate,
 		sandboxReader:            sandboxReader,
 		sandboxWriter:            sandboxWriter,
@@ -650,6 +678,7 @@ func (app *application) routes() http.Handler {
 	mux.HandleFunc("GET /dashboard/sandboxes/{id}", app.sandboxPage)
 	mux.HandleFunc("GET /dashboard/sandboxes/{id}/fragment", app.sandboxDetail)
 	mux.HandleFunc("GET /dashboard/sandboxes/{id}/stats", app.sandboxStats)
+	mux.HandleFunc("GET /dashboard/sandboxes/{id}/events", app.sandboxEvents)
 	mux.HandleFunc("GET /dashboard/sandboxes/{id}/deployment-status", app.sandboxDeploymentStatus)
 	mux.HandleFunc("GET /dashboard/sandboxes/{id}/terminal/pty", app.sandboxPTY)
 	mux.HandleFunc("POST /dashboard/sandboxes/{id}/pause", app.pauseSandbox)
@@ -727,6 +756,7 @@ func (app *application) clusterStats(w http.ResponseWriter, r *http.Request) {
 	sandboxes, sandboxErr := app.listSandboxes(r.Context(), false)
 	snapshots, _ := app.listSnapshots(r.Context(), false)
 	loads, loadErr := app.sandboxReader.ListSandboxNodeLoads(r.Context())
+	recentEvents, eventErr := app.sandboxReader.ListRecentSandboxEvents(r.Context(), sandboxes)
 	data := clusterStatsData{
 		SandboxTotal:  len(sandboxes),
 		SnapshotTotal: len(snapshots),
@@ -750,7 +780,13 @@ func (app *application) clusterStats(w http.ResponseWriter, r *http.Request) {
 	} else {
 		data.SandboxesPerNode = "—"
 	}
-	if err := errors.Join(sandboxErr, loadErr); err != nil {
+	if len(recentEvents) > 20 {
+		recentEvents = recentEvents[:20]
+	}
+	for _, event := range recentEvents {
+		data.RecentEvents = append(data.RecentEvents, sandboxEventToView(event))
+	}
+	if err := errors.Join(sandboxErr, loadErr, eventErr); err != nil {
 		data.Error = "Some cluster statistics could not be loaded: " + err.Error()
 	}
 
@@ -1048,6 +1084,61 @@ func (app *application) changeSandboxState(w http.ResponseWriter, r *http.Reques
 	data.StateLabel = sandboxStateLabel(data.State)
 	w.Header().Set("HX-Trigger", "sandboxStateChanged")
 	app.renderSandboxDetail(w, r, data)
+}
+
+func (app *application) sandboxEvents(w http.ResponseWriter, r *http.Request) {
+	sandboxID := r.PathValue("id")
+	sandboxes, listErr := app.listSandboxes(r.Context(), false)
+	data := sandboxEventsData{SandboxID: sandboxID}
+	for _, sandbox := range sandboxes {
+		if sandbox.ID == sandboxID {
+			data.PodName = sandbox.PodName
+			break
+		}
+	}
+	if data.PodName == "" {
+		if listErr != nil {
+			data.Error = "Unable to locate the sandbox pod: " + listErr.Error()
+		}
+		app.renderSandboxEvents(w, r, data)
+		return
+	}
+
+	events, err := app.sandboxReader.ListPodEvents(r.Context(), data.PodName)
+	if err != nil {
+		data.Error = "Unable to load pod events: " + err.Error()
+	}
+	if len(events) > 50 {
+		events = events[:50]
+	}
+	for _, event := range events {
+		data.Events = append(data.Events, sandboxEventToView(event))
+	}
+	app.renderSandboxEvents(w, r, data)
+}
+
+func sandboxEventToView(event opensandbox.SandboxEvent) sandboxEventView {
+	view := sandboxEventView{
+		SandboxID:      event.SandboxID,
+		SandboxIDShort: abbreviateTechnicalID(event.SandboxID),
+		Type:           event.Type,
+		Reason:         event.Reason,
+		Message:        event.Message,
+		Source:         event.Source,
+		Count:          event.Count,
+	}
+	if !event.LastSeen.IsZero() {
+		view.LastSeenISO = event.LastSeen.Format(time.RFC3339)
+		view.LastSeenFallback = event.LastSeen.Local().Format("2006-01-02 15:04:05 MST")
+	}
+	return view
+}
+
+func (app *application) renderSandboxEvents(w http.ResponseWriter, r *http.Request, data sandboxEventsData) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := app.executeHTMLTemplate(w, app.eventsTemplate, "", data); err != nil {
+		slog.ErrorContext(r.Context(), "render sandbox events", slog.String("sandbox_id", data.SandboxID), slog.Any("error", err))
+	}
 }
 
 func (app *application) sandboxStats(w http.ResponseWriter, r *http.Request) {
@@ -1688,6 +1779,7 @@ func snapshotToView(snapshot opensandbox.Snapshot, sourceSandboxAvailable bool) 
 	view := snapshotView{
 		ID:                     snapshot.ID,
 		SandboxID:              snapshot.SandboxID,
+		SandboxIDShort:         abbreviateTechnicalID(snapshot.SandboxID),
 		Name:                   name,
 		HasName:                hasName,
 		State:                  state,
@@ -1907,6 +1999,14 @@ func newSnapshotsData(snapshots []snapshotView, sandboxTotal int) snapshotsData 
 		})
 	}
 	return data
+}
+
+func abbreviateTechnicalID(value string) string {
+	const visibleLength = 8
+	if len(value) <= visibleLength {
+		return value
+	}
+	return value[:visibleLength] + "…"
 }
 
 func normalizeSandboxState(state string) string {

@@ -41,6 +41,9 @@
  * - Keep cluster stats minimal: summarize sandbox count, nodes hosting sandbox
  *   pods, and sandboxes per node; show requested CPU and memory against node
  *   allocatable capacity without requiring Metrics Server.
+ * - Load Kubernetes pod events lazily in the sandbox details pane. Aggregate
+ *   repeated reason/message entries, retain occurrence counts and latest times,
+ *   and refresh the panel without replacing the terminal workspace.
  * - Represent status with hollow colored rings, never solid status dots.
  * - Use rounded filter pills and toolbar controls; group resource rows beneath
  *   quiet, collapsible section headers.
@@ -1301,6 +1304,91 @@ button.nav-item {
   font-variant-numeric: tabular-nums;
 }
 
+.cluster-events-table {
+  overflow-x: auto;
+}
+
+.cluster-events-table-header,
+.cluster-events-row {
+  display: grid;
+  min-width: 58rem;
+  grid-template-columns: minmax(7rem, 0.65fr) minmax(7rem, 0.7fr) minmax(9rem, 0.8fr) minmax(20rem, 2fr) 4rem;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 16px;
+}
+
+.cluster-events-table-header {
+  color: var(--os-subtle);
+  background: var(--os-group);
+  font-size: 11px;
+  font-weight: 560;
+}
+
+.cluster-events-row {
+  min-height: 52px;
+  border-top: 1px solid var(--os-border-soft);
+  color: var(--os-muted);
+  font-size: 11px;
+}
+
+.cluster-events-table-header + .cluster-events-row {
+  border-top: 0;
+}
+
+.cluster-events-row time {
+  color: var(--os-subtle);
+  white-space: nowrap;
+}
+
+.cluster-events-row > a {
+  overflow: hidden;
+  color: var(--os-text);
+  font: 600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-events-row > a:hover {
+  color: var(--os-primary);
+}
+
+.cluster-event-reason {
+  display: grid;
+  min-width: 0;
+}
+
+.cluster-event-reason strong {
+  overflow: hidden;
+  color: var(--os-text);
+  font-size: 11px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-event-reason small {
+  color: var(--os-subtle);
+  font-size: 10px;
+}
+
+.cluster-events-row[data-event-type="Warning"] .cluster-event-reason small {
+  color: var(--os-warning);
+}
+
+.cluster-event-message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-event-count {
+  color: var(--os-subtle);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 .cluster-stats-empty {
   display: flex;
   min-height: 180px;
@@ -1796,7 +1884,7 @@ button.nav-item {
   height: 34rem;
   min-height: 34rem;
   overflow: hidden;
-  padding: 10px;
+  padding: 10px 0 10px 10px;
   color: #d8dee9;
   background: #111318;
   caret-color: transparent;
@@ -1806,6 +1894,12 @@ button.nav-item {
 .ghostty-terminal > div,
 .ghostty-terminal canvas {
   max-width: 100%;
+}
+
+.ghostty-terminal canvas {
+  display: block;
+  width: 100% !important;
+  margin-left: auto;
 }
 
 .sandbox-terminal-overlay {
@@ -1907,6 +2001,158 @@ button.nav-item {
 
 .sandbox-detail-section h2 {
   margin-bottom: 10px;
+}
+
+.sandbox-events {
+  min-width: 0;
+}
+
+.sandbox-event-list {
+  display: grid;
+}
+
+.sandbox-event {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 9px;
+  padding: 11px 8px;
+  border-bottom: 1px solid var(--os-border-soft);
+}
+
+.sandbox-event:last-child {
+  border-bottom: 0;
+}
+
+.sandbox-event-icon {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  color: var(--os-muted);
+  place-items: center;
+}
+
+.sandbox-event[data-event-type="Warning"] .sandbox-event-icon {
+  color: var(--os-warning);
+}
+
+.sandbox-event-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.sandbox-event-body {
+  min-width: 0;
+}
+
+.sandbox-event-body header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.sandbox-event-body header strong {
+  overflow: hidden;
+  color: var(--os-text);
+  font-size: 12px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sandbox-event-body time {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--os-subtle);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.sandbox-event-count {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: var(--os-muted);
+  background: var(--os-group);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sandbox-event-body p {
+  margin: 4px 0 0;
+  color: var(--os-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.sandbox-event-body small {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--os-subtle);
+  font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sandbox-events-empty {
+  display: flex;
+  min-height: 12rem;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 24px 12px;
+  color: var(--os-subtle);
+  text-align: center;
+}
+
+.sandbox-events-empty > span {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 10px;
+  border-radius: 9px;
+  background: var(--os-group);
+  place-items: center;
+}
+
+.sandbox-events-empty svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sandbox-events[data-events-loaded="false"] .sandbox-events-empty svg {
+  animation: create-spinner 0.8s linear infinite;
+}
+
+.sandbox-events-empty strong {
+  color: var(--os-muted);
+  font-size: 12px;
+}
+
+.sandbox-events-empty p {
+  max-width: 18rem;
+  margin: 4px 0 0;
+  font-size: 11px;
+}
+
+.sandbox-events-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 9px 10px;
+  border-radius: 7px;
+  color: var(--os-danger);
+  background: color-mix(in srgb, var(--os-danger) 7%, var(--os-panel));
+  font-size: 11px;
+}
+
+.sandbox-events-error svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
 }
 
 .sandbox-metadata-list {
@@ -2312,6 +2558,7 @@ button.nav-item {
 }
 
 .sandbox-image {
+  max-width: 32rem;
   flex: 0 1 auto;
 }
 
@@ -2502,10 +2749,6 @@ button.nav-item {
   text-decoration: none;
 }
 
-.snapshot-headline:hover strong {
-  text-decoration: underline;
-}
-
 .snapshot-headline strong {
   overflow: hidden;
   color: var(--os-text);
@@ -2552,6 +2795,26 @@ button.nav-item {
 .snapshot-source a:hover {
   color: var(--os-text);
   text-decoration: underline;
+}
+
+.snapshot-source-deleted {
+  margin-left: 3px;
+  color: var(--os-subtle);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.snapshot-detail-deleted-source {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.snapshot-detail-deleted-source .sandbox-detail-property-value {
+  min-width: 0;
 }
 
 .snapshot-row-actions {

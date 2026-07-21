@@ -16,12 +16,20 @@ async page => {
     throw new Error(`timed out waiting for ${description}`);
   }
   async function cleanup(path) {
-    const response = await page.request.delete(`${baseURL}${path}`, {
-      headers: { 'X-OSB-CSRF': '1' },
-    });
-    if (!response.ok()) {
-      throw new Error(`cleanup ${path} failed with HTTP ${response.status()}: ${await response.text()}`);
+    let lastError;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const response = await page.request.delete(`${baseURL}${path}`, {
+          headers: { 'X-OSB-CSRF': '1' },
+        });
+        if (response.ok()) { return; }
+        lastError = new Error(`cleanup ${path} failed with HTTP ${response.status()}: ${await response.text()}`);
+      } catch (error) {
+        lastError = error;
+      }
+      await page.waitForTimeout(attempt * 500);
     }
+    throw lastError;
   }
 
   const results = [];

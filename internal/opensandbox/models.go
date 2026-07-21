@@ -69,6 +69,19 @@ type SandboxNodeLoad struct {
 	MemoryAllocatableBytes int64
 }
 
+// SandboxEvent is an aggregated Kubernetes event for a sandbox pod.
+type SandboxEvent struct {
+	SandboxID string
+	PodName   string
+	Type      string
+	Reason    string
+	Message   string
+	Source    string
+	Count     int32
+	FirstSeen time.Time
+	LastSeen  time.Time
+}
+
 type listResponse struct {
 	Items []apiSandbox `json:"items"`
 }

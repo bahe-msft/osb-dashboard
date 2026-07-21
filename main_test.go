@@ -18,9 +18,11 @@ import (
 )
 
 type fakeSandboxService struct {
-	sandboxes []opensandbox.Sandbox
-	snapshots []opensandbox.Snapshot
-	nodeLoads []opensandbox.SandboxNodeLoad
+	sandboxes    []opensandbox.Sandbox
+	snapshots    []opensandbox.Snapshot
+	nodeLoads    []opensandbox.SandboxNodeLoad
+	podEvents    map[string][]opensandbox.SandboxEvent
+	recentEvents []opensandbox.SandboxEvent
 }
 
 type noBashSandboxService struct {
@@ -44,6 +46,14 @@ func (service *fakeSandboxService) ListSnapshots(context.Context) ([]opensandbox
 
 func (service *fakeSandboxService) ListSandboxNodeLoads(context.Context) ([]opensandbox.SandboxNodeLoad, error) {
 	return append([]opensandbox.SandboxNodeLoad(nil), service.nodeLoads...), nil
+}
+
+func (service *fakeSandboxService) ListPodEvents(_ context.Context, podName string) ([]opensandbox.SandboxEvent, error) {
+	return append([]opensandbox.SandboxEvent(nil), service.podEvents[podName]...), nil
+}
+
+func (service *fakeSandboxService) ListRecentSandboxEvents(context.Context, []opensandbox.Sandbox) ([]opensandbox.SandboxEvent, error) {
+	return append([]opensandbox.SandboxEvent(nil), service.recentEvents...), nil
 }
 
 func (service *fakeSandboxService) GetSnapshot(_ context.Context, snapshotID string) (opensandbox.Snapshot, error) {
@@ -348,6 +358,15 @@ func TestSandboxDetailFromSandboxHidesInternalMetadata(t *testing.T) {
 	}
 }
 
+func TestAbbreviateTechnicalID(t *testing.T) {
+	if got := abbreviateTechnicalID("short"); got != "short" {
+		t.Errorf("abbreviateTechnicalID(short) = %q", got)
+	}
+	if got := abbreviateTechnicalID("a8c6d860-4fd5-4584-96aa-c6ac924d8c57"); got != "a8c6d860…" {
+		t.Errorf("abbreviateTechnicalID(UUID) = %q", got)
+	}
+}
+
 func TestFormatSandboxResources(t *testing.T) {
 	tests := []struct {
 		cpu    string
@@ -564,6 +583,46 @@ func TestSnapshotRoutes(t *testing.T) {
 	}
 }
 
+func TestSandboxEventsRoute(t *testing.T) {
+	lastSeen := time.Date(2026, time.July, 21, 12, 0, 0, 0, time.UTC)
+	service := &fakeSandboxService{
+		sandboxes: []opensandbox.Sandbox{{ID: "sandbox-1", PodName: "sandbox-1-0"}},
+		podEvents: map[string][]opensandbox.SandboxEvent{
+			"sandbox-1-0": {{
+				Type:     "Warning",
+				Reason:   "FailedScheduling",
+				Message:  "Insufficient cpu",
+				Source:   "default-scheduler",
+				Count:    3,
+				LastSeen: lastSeen,
+			}},
+		},
+	}
+	app, err := newApplication(
+		"/tmp/test-kubeconfig",
+		service,
+		service,
+		service,
+		service,
+		"python:3.12-slim",
+		context.Background(),
+	)
+	if err != nil {
+		t.Fatalf("newApplication() error = %v", err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/dashboard/sandboxes/sandbox-1/events", nil)
+	response := httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+	for _, expected := range []string{"FailedScheduling", "Insufficient cpu", "default-scheduler", "×3", lastSeen.Format(time.RFC3339)} {
+		if !strings.Contains(response.Body.String(), expected) {
+			t.Errorf("response does not contain %q: %s", expected, response.Body.String())
+		}
+	}
+}
+
 func TestClusterStatsRoute(t *testing.T) {
 	service := &fakeSandboxService{
 		sandboxes: []opensandbox.Sandbox{{ID: "sandbox-1"}, {ID: "sandbox-2"}},
@@ -574,6 +633,14 @@ func TestClusterStatsRoute(t *testing.T) {
 			CPUAllocatableMilli:    4000,
 			MemoryRequestedBytes:   2 * 1024 * 1024 * 1024,
 			MemoryAllocatableBytes: 8 * 1024 * 1024 * 1024,
+		}},
+		recentEvents: []opensandbox.SandboxEvent{{
+			SandboxID: "sandbox-1",
+			Type:      "Warning",
+			Reason:    "FailedScheduling",
+			Message:   "Insufficient cpu",
+			Count:     2,
+			LastSeen:  time.Date(2026, time.July, 21, 12, 0, 0, 0, time.UTC),
 		}},
 	}
 	app, err := newApplication(
@@ -594,7 +661,7 @@ func TestClusterStatsRoute(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
 	}
-	for _, expected := range []string{"node-a", "2 scheduled", "2.0", "1 core / 4 cores", "2 GiB / 8 GiB", "25.0%"} {
+	for _, expected := range []string{"node-a", "2 scheduled", "2.0", "1 core / 4 cores", "2 GiB / 8 GiB", "25.0%", "Recent sandbox events", "FailedScheduling", "Insufficient cpu"} {
 		if !strings.Contains(response.Body.String(), expected) {
 			t.Errorf("response does not contain %q: %s", expected, response.Body.String())
 		}
