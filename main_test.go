@@ -144,12 +144,15 @@ func TestParseCommandConfig(t *testing.T) {
 		t.Fatalf("write kubeconfig: %v", err)
 	}
 
-	config, err := parseCommandConfig([]string{"--kubeconfig", kubeconfigPath})
+	config, err := parseCommandConfig([]string{"--kubeconfig", kubeconfigPath, "--base-path", "dashboard/"})
 	if err != nil {
 		t.Fatalf("parseCommandConfig() error = %v", err)
 	}
 	if config.kubeconfigPath != kubeconfigPath {
 		t.Errorf("kubeconfigPath = %q, want %q", config.kubeconfigPath, kubeconfigPath)
+	}
+	if config.basePath != "/dashboard" {
+		t.Errorf("basePath = %q, want %q", config.basePath, "/dashboard")
 	}
 }
 
@@ -185,6 +188,31 @@ func TestParseCommandConfigRejectsInvalidArguments(t *testing.T) {
 				t.Errorf("error = %q, want it to contain %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestNormalizeBasePath(t *testing.T) {
+	tests := []struct {
+		value string
+		want  string
+		err   bool
+	}{
+		{value: "", want: ""},
+		{value: "/", want: ""},
+		{value: "dashboard", want: "/dashboard"},
+		{value: "/dashboard/", want: "/dashboard"},
+		{value: "/nested//dashboard", want: "/nested/dashboard"},
+		{value: "/../dashboard", err: true},
+		{value: "/dashboard?mode=test", err: true},
+	}
+	for _, test := range tests {
+		got, err := normalizeBasePath(test.value)
+		if (err != nil) != test.err {
+			t.Errorf("normalizeBasePath(%q) error = %v, want error %t", test.value, err, test.err)
+		}
+		if got != test.want {
+			t.Errorf("normalizeBasePath(%q) = %q, want %q", test.value, got, test.want)
+		}
 	}
 }
 
@@ -528,6 +556,79 @@ func TestSnapshotRoutes(t *testing.T) {
 	}
 	if len(service.snapshots) != 0 || !strings.Contains(response.Body.String(), "No snapshots yet") {
 		t.Errorf("delete snapshot response = %s; snapshots = %#v", response.Body.String(), service.snapshots)
+	}
+}
+
+func TestBasePathRoutes(t *testing.T) {
+	service := &fakeSandboxService{sandboxes: []opensandbox.Sandbox{{
+		ID:        "sandbox-1",
+		State:     "Running",
+		CreatedAt: time.Date(2026, time.July, 21, 12, 0, 0, 0, time.UTC),
+		Image:     "python:3.12-slim",
+		Sources:   []string{opensandbox.SourceLifecycle},
+	}}}
+	app, err := newApplication(
+		"/tmp/test-kubeconfig",
+		service,
+		service,
+		service,
+		service,
+		"python:3.12-slim",
+		context.Background(),
+		"/dashboard",
+	)
+	if err != nil {
+		t.Fatalf("newApplication() error = %v", err)
+	}
+
+	tests := []struct {
+		path     string
+		status   int
+		contains []string
+		location string
+	}{
+		{path: "/", status: http.StatusNotFound},
+		{path: "/dashboard", status: http.StatusPermanentRedirect, location: "/dashboard/"},
+		{path: "/dashboard/", status: http.StatusOK, contains: []string{
+			`data-base-path="/dashboard"`,
+			`src="/dashboard/assets/boot.js"`,
+			`hx-get="/dashboard/dashboard/overview"`,
+		}},
+		{path: "/dashboard/assets/favicon.svg", status: http.StatusOK, contains: []string{"<svg"}},
+		{path: "/dashboard/dashboard/overview", status: http.StatusOK, contains: []string{
+			`hx-get="/dashboard/dashboard/sandboxes/sandbox-1/fragment"`,
+			`hx-push-url="/dashboard/sandboxes/sandbox-1"`,
+		}},
+		{path: "/dashboard/snapshots", status: http.StatusOK, contains: []string{
+			`data-page="snapshots"`,
+			`hx-get="/dashboard/dashboard/snapshots"`,
+		}},
+		{path: "/dashboard/sandboxes/sandbox-1", status: http.StatusOK, contains: []string{
+			`data-page="detail"`,
+			`hx-get="/dashboard/dashboard/sandboxes/sandbox-1/fragment"`,
+		}},
+		{path: "/dashboard/dashboard/sandboxes/sandbox-1/fragment", status: http.StatusOK, contains: []string{
+			`hx-get="/dashboard/dashboard/sandboxes/sandbox-1/fragment"`,
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.path, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, test.path, nil)
+			response := httptest.NewRecorder()
+			app.routes().ServeHTTP(response, request)
+			if response.Code != test.status {
+				t.Fatalf("status = %d, want %d; body = %s", response.Code, test.status, response.Body.String())
+			}
+			if test.location != "" && response.Header().Get("Location") != test.location {
+				t.Errorf("Location = %q, want %q", response.Header().Get("Location"), test.location)
+			}
+			for _, expected := range test.contains {
+				if !strings.Contains(response.Body.String(), expected) {
+					t.Errorf("response does not contain %q: %s", expected, response.Body.String())
+				}
+			}
+		})
 	}
 }
 

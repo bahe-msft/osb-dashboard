@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -18,6 +19,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	pathpkg "path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -119,6 +121,7 @@ type application struct {
 	snapshotCache            []opensandbox.Snapshot
 	snapshotCacheErr         error
 	snapshotCacheUntil       time.Time
+	basePath                 string
 }
 
 type commandConfig struct {
@@ -127,6 +130,7 @@ type commandConfig struct {
 	sandboxNamespace     string
 	sandboxImage         string
 	authToken            string
+	basePath             string
 }
 
 type sandboxView struct {
@@ -166,6 +170,7 @@ type pageData struct {
 	SnapshotID   string
 	Page         string
 	ContentURL   string
+	BasePath     string
 }
 
 type detailItem struct {
@@ -334,7 +339,7 @@ func run(args []string) error {
 	}()
 
 	appContext, cancelApp := context.WithCancel(context.Background())
-	app, err := newApplication(config.kubeconfigPath, client, client, client, client, config.sandboxImage, appContext)
+	app, err := newApplication(config.kubeconfigPath, client, client, client, client, config.sandboxImage, appContext, config.basePath)
 	if err != nil {
 		cancelApp()
 		return err
@@ -372,6 +377,7 @@ func run(args []string) error {
 		"dashboard listening",
 		slog.String("address", addr),
 		slog.String("kubeconfig", app.kubeconfigPath),
+		slog.String("base_path", app.basePath),
 	)
 	serveErr := server.ListenAndServe()
 	cancelApp()
@@ -417,6 +423,12 @@ func parseCommandConfig(args []string) (commandConfig, error) {
 		os.Getenv("OSB_DASHBOARD_AUTH_TOKEN"),
 		"token required for dashboard access (required for non-loopback HTTP_ADDR)",
 	)
+	flags.StringVar(
+		&config.basePath,
+		"base-path",
+		os.Getenv("OSB_DASHBOARD_BASE_PATH"),
+		"URL path prefix used to serve the dashboard (for example /dashboard)",
+	)
 
 	if err := flags.Parse(args); err != nil {
 		return commandConfig{}, err
@@ -436,6 +448,11 @@ func parseCommandConfig(args []string) (commandConfig, error) {
 	if strings.TrimSpace(config.sandboxImage) == "" {
 		return commandConfig{}, errors.New("--sandbox-image is required")
 	}
+	basePath, err := normalizeBasePath(config.basePath)
+	if err != nil {
+		return commandConfig{}, err
+	}
+	config.basePath = basePath
 
 	resolvedPath, err := filepath.Abs(config.kubeconfigPath)
 	if err != nil {
@@ -454,6 +471,29 @@ func parseCommandConfig(args []string) (commandConfig, error) {
 	return config, nil
 }
 
+func normalizeBasePath(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "/" {
+		return "", nil
+	}
+	if strings.ContainsAny(value, "?#") {
+		return "", errors.New("--base-path must be a URL path without a query or fragment")
+	}
+	if !strings.HasPrefix(value, "/") {
+		value = "/" + value
+	}
+	for _, segment := range strings.Split(value, "/") {
+		if segment == ".." {
+			return "", errors.New("--base-path must not contain parent path segments")
+		}
+	}
+	cleaned := pathpkg.Clean(value)
+	if cleaned == "." || cleaned == "/" {
+		return "", nil
+	}
+	return strings.TrimRight(cleaned, "/"), nil
+}
+
 func newApplication(
 	kubeconfigPath string,
 	sandboxReader opensandbox.Reader,
@@ -462,7 +502,12 @@ func newApplication(
 	sandboxCommands opensandbox.CommandRunner,
 	sandboxImage string,
 	appContext context.Context,
+	basePaths ...string,
 ) (*application, error) {
+	basePath := ""
+	if len(basePaths) != 0 {
+		basePath = basePaths[0]
+	}
 	assetsFS, err := fs.Sub(webFiles, "web/assets")
 	if err != nil {
 		return nil, fmt.Errorf("load web assets: %w", err)
@@ -524,9 +569,42 @@ func newApplication(
 		sandboxTerminal:          sandboxTerminal,
 		sandboxCommands:          sandboxCommands,
 		sandboxImage:             sandboxImage,
+		basePath:                 basePath,
 		context:                  appContext,
 		statsCache:               make(map[string]cachedSandboxStats),
 	}, nil
+}
+
+func (app *application) executeHTMLTemplate(w http.ResponseWriter, tmpl *template.Template, name string, data any) error {
+	var rendered bytes.Buffer
+	var err error
+	if name == "" {
+		err = tmpl.Execute(&rendered, data)
+	} else {
+		err = tmpl.ExecuteTemplate(&rendered, name, data)
+	}
+	if err != nil {
+		return err
+	}
+	content := rendered.String()
+	if app.basePath != "" {
+		attributes := []string{"href", "src", "action", "hx-get", "hx-post", "hx-delete", "hx-push-url"}
+		for _, attribute := range attributes {
+			content = strings.ReplaceAll(content, attribute+`="/`, attribute+`="`+app.basePath+`/`)
+		}
+		content = strings.ReplaceAll(
+			content,
+			`href="`+app.basePath+`/dashboard/sandboxes/`,
+			`href="`+app.basePath+`/sandboxes/`,
+		)
+		content = strings.ReplaceAll(
+			content,
+			`hx-push-url="`+app.basePath+`/dashboard/sandboxes/`,
+			`hx-push-url="`+app.basePath+`/sandboxes/`,
+		)
+	}
+	_, err = w.Write([]byte(content))
+	return err
 }
 
 func (app *application) routes() http.Handler {
@@ -534,6 +612,7 @@ func (app *application) routes() http.Handler {
 	mux.HandleFunc("GET /{$}", app.index)
 	mux.HandleFunc("GET /snapshots", app.snapshotsPage)
 	mux.HandleFunc("GET /snapshots/{id}", app.snapshotPage)
+	mux.HandleFunc("GET /sandboxes/{id}", app.sandboxPage)
 	mux.HandleFunc("GET /dashboard/overview", app.overview)
 	mux.HandleFunc("GET /dashboard/snapshots", app.snapshots)
 	mux.HandleFunc("GET /dashboard/snapshots/{id}/fragment", app.snapshotDetail)
@@ -552,7 +631,15 @@ func (app *application) routes() http.Handler {
 	mux.HandleFunc("GET /healthz", health)
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", app.assets))
 
-	return mux
+	if app.basePath == "" {
+		return mux
+	}
+	root := http.NewServeMux()
+	root.HandleFunc("GET "+app.basePath, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, app.basePath+"/", http.StatusPermanentRedirect)
+	})
+	root.Handle(app.basePath+"/", http.StripPrefix(app.basePath, mux))
+	return root
 }
 
 func (app *application) index(w http.ResponseWriter, r *http.Request) {
@@ -578,6 +665,7 @@ func (app *application) renderPage(w http.ResponseWriter, r *http.Request, page,
 		SnapshotID:   snapshotID,
 		Page:         page,
 		ContentURL:   "/dashboard/overview",
+		BasePath:     app.basePath,
 	}
 	if page == "snapshots" {
 		data.ContentURL = "/dashboard/snapshots"
@@ -588,7 +676,7 @@ func (app *application) renderPage(w http.ResponseWriter, r *http.Request, page,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := app.indexTemplate.Execute(w, data); err != nil {
+	if err := app.executeHTMLTemplate(w, app.indexTemplate, "", data); err != nil {
 		slog.ErrorContext(r.Context(), "render index", slog.Any("error", err))
 	}
 }
@@ -623,7 +711,7 @@ func (app *application) snapshotDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := app.snapshotDetailTemplate.Execute(w, data); err != nil {
+	if err := app.executeHTMLTemplate(w, app.snapshotDetailTemplate, "", data); err != nil {
 		slog.ErrorContext(r.Context(), "render snapshot detail", slog.String("snapshot_id", snapshotID), slog.Any("error", err))
 	}
 }
@@ -647,7 +735,7 @@ func (app *application) snapshotCreateStatus(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := app.snapshotResultTemplate.ExecuteTemplate(w, "snapshot-result-status", data); err != nil {
+	if err := app.executeHTMLTemplate(w, app.snapshotResultTemplate, "snapshot-result-status", data); err != nil {
 		slog.ErrorContext(r.Context(), "render snapshot creation status", slog.String("snapshot_id", snapshotID), slog.Any("error", err))
 	}
 }
@@ -716,7 +804,7 @@ func (app *application) createSnapshot(w http.ResponseWriter, r *http.Request) {
 	data := snapshotCreateResultFromSnapshot(created, len(snapshots))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("HX-Trigger", "snapshotCreated")
-	if err := app.snapshotResultTemplate.ExecuteTemplate(w, "snapshot-result", data); err != nil {
+	if err := app.executeHTMLTemplate(w, app.snapshotResultTemplate, "snapshot-result", data); err != nil {
 		slog.ErrorContext(r.Context(), "render snapshot result", slog.String("snapshot_id", created.ID), slog.Any("error", err))
 	}
 }
@@ -786,7 +874,7 @@ func (app *application) renderSandboxDetail(w http.ResponseWriter, r *http.Reque
 	snapshots, _ := app.listSnapshots(r.Context(), false)
 	data.SnapshotTotal = len(snapshots)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := app.sandboxTemplate.Execute(w, data); err != nil {
+	if err := app.executeHTMLTemplate(w, app.sandboxTemplate, "", data); err != nil {
 		slog.ErrorContext(r.Context(), "render sandbox detail", slog.String("sandbox_id", data.ID), slog.Any("error", err))
 	}
 }
@@ -935,7 +1023,7 @@ func (app *application) cacheSandboxStats(sandboxID string, data sandboxStatsDat
 
 func (app *application) renderSandboxStats(w http.ResponseWriter, r *http.Request, data sandboxStatsData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := app.statsTemplate.Execute(w, data); err != nil {
+	if err := app.executeHTMLTemplate(w, app.statsTemplate, "", data); err != nil {
 		slog.ErrorContext(r.Context(), "render sandbox stats", slog.String("sandbox_id", data.SandboxID), slog.Any("error", err))
 	}
 }
@@ -1194,7 +1282,7 @@ func (app *application) sandboxDeploymentStatus(w http.ResponseWriter, r *http.R
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := app.deploymentResultTemplate.ExecuteTemplate(w, "deployment-result-status", data); err != nil {
+	if err := app.executeHTMLTemplate(w, app.deploymentResultTemplate, "deployment-result-status", data); err != nil {
 		slog.ErrorContext(r.Context(), "render sandbox deployment status", slog.String("sandbox_id", sandboxID), slog.Any("error", err))
 	}
 }
@@ -1226,7 +1314,7 @@ func sandboxDeploymentResultFromSandbox(sandbox opensandbox.Sandbox, snapshotID,
 func (app *application) renderSandboxDeploymentResult(w http.ResponseWriter, r *http.Request, data sandboxDeploymentResultData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("HX-Trigger", "sandboxDeploymentStarted")
-	if err := app.deploymentResultTemplate.ExecuteTemplate(w, "deployment-result", data); err != nil {
+	if err := app.executeHTMLTemplate(w, app.deploymentResultTemplate, "deployment-result", data); err != nil {
 		slog.ErrorContext(r.Context(), "render sandbox deployment result", slog.String("sandbox_id", data.SandboxID), slog.Any("error", err))
 	}
 }
@@ -1529,7 +1617,7 @@ func snapshotToView(snapshot opensandbox.Snapshot, sourceSandboxAvailable bool) 
 
 func (app *application) renderSnapshots(w http.ResponseWriter, r *http.Request, data snapshotsData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := app.snapshotsTemplate.Execute(w, data); err != nil {
+	if err := app.executeHTMLTemplate(w, app.snapshotsTemplate, "", data); err != nil {
 		slog.ErrorContext(r.Context(), "render snapshots", slog.Any("error", err))
 	}
 }
@@ -1563,7 +1651,7 @@ func (app *application) overviewDataFromSandboxes(sandboxes []opensandbox.Sandbo
 
 func (app *application) renderOverview(w http.ResponseWriter, data overviewData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := app.overviewTemplate.Execute(w, data); err != nil {
+	if err := app.executeHTMLTemplate(w, app.overviewTemplate, "", data); err != nil {
 		slog.Error("render overview", slog.Any("error", err))
 	}
 }

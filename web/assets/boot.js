@@ -1,4 +1,5 @@
 (function () {
+  window.osbBasePath = document.documentElement.dataset.basePath || '';
   var sidebar = localStorage.getItem('opensandbox-sidebar');
   if (sidebar) { document.documentElement.setAttribute('data-sidebar', sidebar); }
   var savedTheme = localStorage.getItem('opensandbox-theme');

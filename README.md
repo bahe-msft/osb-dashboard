@@ -12,6 +12,22 @@ just dev /path/to/kubeconfig
 The dashboard listens on `127.0.0.1:8080` by default. Override the address with
 `HTTP_ADDR`.
 
+### Subpath hosting
+
+Use `--base-path` (or `OSB_DASHBOARD_BASE_PATH`) when the dashboard is exposed
+beneath a URL prefix:
+
+```bash
+go run . \
+  --kubeconfig /path/to/kubeconfig \
+  --base-path /dashboard
+```
+
+The application will then serve its UI, assets, HTMX endpoints, browser-history
+URLs, forms, and terminal WebSocket beneath `/dashboard`. Configure the reverse
+proxy to forward that prefix unchanged; requests to `/dashboard` redirect to
+`/dashboard/`.
+
 ## Container image
 
 Pushes to `main`, version tags such as `v1.2.3`, and manual workflow runs publish
@@ -28,10 +44,13 @@ token when exposing the dashboard outside the container:
 docker run --rm -p 8080:8080 \
   -e HTTP_ADDR=0.0.0.0:8080 \
   -e OSB_DASHBOARD_AUTH_TOKEN='replace-with-a-strong-token' \
+  -e OSB_DASHBOARD_BASE_PATH='/dashboard' \
   -v "$HOME/.kube/config:/config/kubeconfig:ro" \
   ghcr.io/bahe-msft/osb-dashboard:latest \
   --kubeconfig /config/kubeconfig
 ```
+
+With the example above, open `http://localhost:8080/dashboard/`.
 
 Published images support `linux/amd64` and `linux/arm64`. The workflow also
 publishes branch, semantic-version, and commit-SHA tags and attaches provenance

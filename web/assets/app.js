@@ -457,7 +457,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     showOverlay('Connecting terminal', 'Opening an interactive PTY session through OpenSandbox.', 'Connecting', true);
     try {
-      var ghostty = await import('/assets/vendor/ghostty-web/ghostty-web.js');
+      var ghostty = await import((window.osbBasePath || '') + '/assets/vendor/ghostty-web/ghostty-web.js');
       await ghostty.init();
       var terminal = new ghostty.Terminal({
         cursorBlink: true,
@@ -475,7 +475,7 @@ document.addEventListener('DOMContentLoaded', function () {
       window.osbTerminalResizeObserver.observe(container);
 
       var websocketScheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      var websocketURL = websocketScheme + '//' + window.location.host + '/dashboard/sandboxes/' + encodeURIComponent(sandboxID) + '/terminal/pty';
+      var websocketURL = websocketScheme + '//' + window.location.host + (window.osbBasePath || '') + '/dashboard/sandboxes/' + encodeURIComponent(sandboxID) + '/terminal/pty';
       var socket = new WebSocket(websocketURL);
       socket.binaryType = 'arraybuffer';
       window.osbTerminalSocket = socket;
