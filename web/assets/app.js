@@ -457,7 +457,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     showOverlay('Connecting terminal', 'Opening an interactive PTY session through OpenSandbox.', 'Connecting', true);
     try {
-      var ghostty = await import((window.osbBasePath || '') + '/assets/vendor/ghostty-web/ghostty-web.js');
+      var ghostty = await import((window.osbBasePath || '') + '/assets/third-party/ghostty-web/ghostty-web.js');
       await ghostty.init();
       var terminal = new ghostty.Terminal({
         cursorBlink: true,

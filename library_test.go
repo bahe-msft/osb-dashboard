@@ -79,15 +79,16 @@ func TestLibraryHandlerIncludesAssetsAndAllowsAdditionalRoutes(t *testing.T) {
 	defer app.Close()
 
 	for _, test := range []struct {
-		path        string
-		wantStatus  int
-		wantContent string
+		path            string
+		wantStatus      int
+		wantContent     string
+		wantContentType string
 	}{
 		{path: "/dashboard/custom", wantStatus: http.StatusOK, wantContent: "custom route"},
 		{path: "/dashboard/assets/favicon.svg", wantStatus: http.StatusOK, wantContent: "<svg"},
-		{path: "/dashboard/assets/vendor/ui/htmx.min.js", wantStatus: http.StatusOK, wantContent: "var htmx="},
-		{path: "/dashboard/assets/vendor/ghostty-web/ghostty-web.js", wantStatus: http.StatusOK, wantContent: "ghostty_terminal"},
-		{path: "/dashboard/assets/vendor/ghostty-web/ghostty-vt.wasm", wantStatus: http.StatusOK, wantContent: "\x00asm"},
+		{path: "/dashboard/assets/third-party/ui/htmx.min.js", wantStatus: http.StatusOK, wantContent: "var htmx=", wantContentType: "text/javascript"},
+		{path: "/dashboard/assets/third-party/ghostty-web/ghostty-web.js", wantStatus: http.StatusOK, wantContent: "ghostty_terminal", wantContentType: "text/javascript"},
+		{path: "/dashboard/assets/third-party/ghostty-web/ghostty-vt.wasm", wantStatus: http.StatusOK, wantContent: "\x00asm", wantContentType: "application/wasm"},
 		{path: "/dashboard/", wantStatus: http.StatusOK, wantContent: "OpenSandbox"},
 	} {
 		response := httptest.NewRecorder()
@@ -98,6 +99,9 @@ func TestLibraryHandlerIncludesAssetsAndAllowsAdditionalRoutes(t *testing.T) {
 		}
 		if !strings.Contains(response.Body.String(), test.wantContent) {
 			t.Errorf("GET %s body does not contain %q", test.path, test.wantContent)
+		}
+		if test.wantContentType != "" && !strings.HasPrefix(response.Header().Get("Content-Type"), test.wantContentType) {
+			t.Errorf("GET %s Content-Type = %q, want prefix %q", test.path, response.Header().Get("Content-Type"), test.wantContentType)
 		}
 	}
 }

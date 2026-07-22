@@ -2,7 +2,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-destination="$root/web/assets/vendor/ui"
+destination="$root/web/assets/third-party/ui"
 version_file="$destination/.version"
 versions="basecoat-css=1.0.2 htmx=2.0.10 lucide=0.468.0"
 

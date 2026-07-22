@@ -13,5 +13,5 @@ result-*
 !.playwright/cli.config.json
 .playwright-cli/
 
-# Frontend runtime dependencies under web/assets/vendor are intentionally
+# Frontend runtime dependencies under web/assets/third-party are intentionally
 # tracked so Go module consumers receive every file required by go:embed.

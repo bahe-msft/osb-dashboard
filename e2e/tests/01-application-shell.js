@@ -20,6 +20,19 @@ async page => {
   if (!health.ok() || (await health.text()).trim() !== 'ok') {
     throw new Error(`health endpoint failed with HTTP ${health.status()}`);
   }
+  const embeddedAssets = [
+    { path: '/assets/third-party/ui/htmx.min.js', contentType: 'text/javascript' },
+    { path: '/assets/third-party/ui/basecoat.min.css', contentType: 'text/css' },
+    { path: '/assets/third-party/ghostty-web/ghostty-web.js', contentType: 'text/javascript' },
+    { path: '/assets/third-party/ghostty-web/ghostty-vt.wasm', contentType: 'application/wasm' },
+  ];
+  for (const asset of embeddedAssets) {
+    const response = await page.request.get(`${current.baseURL}${asset.path}`);
+    const actualType = response.headers()['content-type'] || '';
+    if (!response.ok() || !actualType.startsWith(asset.contentType)) {
+      throw new Error(`${asset.path} returned HTTP ${response.status()} with Content-Type ${actualType || '<missing>'}`);
+    }
+  }
   await page.locator('[data-state-filter="all"]').waitFor({ state: 'visible', timeout: 30_000 });
   if (!await page.getByRole('link', { name: /Sandboxes/ }).first().isVisible()) {
     throw new Error('Sandboxes navigation is not visible');
@@ -38,7 +51,7 @@ async page => {
   await page.locator('#dashboard-content[data-page="list"]').waitFor({ state: 'visible' });
   return {
     category: 'Application shell',
-    passed: 3,
-    tests: ['health endpoint and overview render', 'snapshots navigation and page render', 'cluster stats navigation and summary render'],
+    passed: 4,
+    tests: ['health endpoint and embedded assets', 'overview render', 'snapshots navigation and page render', 'cluster stats navigation and summary render'],
   };
 }

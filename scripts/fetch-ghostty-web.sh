@@ -4,7 +4,7 @@ set -euo pipefail
 version="0.4.0"
 sha256="90bf473b6c7f43ab5e52ee98d8295e04fb1c6b07b928e9795489df1e8cb8802e"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-destination="$root/web/assets/vendor/ghostty-web"
+destination="$root/web/assets/third-party/ghostty-web"
 version_file="$destination/.version"
 
 if [[ -f "$version_file" ]] \
