@@ -5,11 +5,11 @@ prepare-web:
 
 # Run the development server with a kubeconfig for an OpenSandbox cluster.
 dev kubeconfig: prepare-web
-  go run . --kubeconfig "{{kubeconfig}}"
+  go run ./cmd/osb-dashboard --kubeconfig "{{kubeconfig}}"
 
 # Build the dashboard binary.
 build: prepare-web
-  go build -o osb-dashboard .
+  go build -o osb-dashboard ./cmd/osb-dashboard
 
 # Run unit and integration tests that do not require a live cluster.
 test: prepare-web

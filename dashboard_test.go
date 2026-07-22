@@ -1,4 +1,4 @@
-package main
+package dashboard
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bahe-msft/osb-dashboard/internal/opensandbox"
+	"github.com/bahe-msft/osb-dashboard/opensandbox"
 	"github.com/coder/websocket"
 )
 

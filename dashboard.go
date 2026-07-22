@@ -1,4 +1,4 @@
-package main
+package dashboard
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/bahe-msft/osb-dashboard/internal/opensandbox"
+	"github.com/bahe-msft/osb-dashboard/opensandbox"
 	"github.com/coder/websocket"
 )
 
@@ -340,20 +340,106 @@ type sandboxUsageStats struct {
 var defaultSandboxStates = []string{"running", "pending", "paused", "failed"}
 var defaultSnapshotStates = []string{"creating", "ready", "failed", "deleting"}
 
-func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	slog.SetDefault(logger)
-
-	if err := run(os.Args[1:]); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return
-		}
-		logger.Error("dashboard exited", slog.Any("error", err))
-		os.Exit(1)
-	}
+// Client contains the OpenSandbox operations used by the dashboard.
+// opensandbox.Client satisfies this interface.
+type Client interface {
+	opensandbox.Reader
+	opensandbox.Writer
+	opensandbox.Terminal
+	opensandbox.CommandRunner
 }
 
-func run(args []string) error {
+// Options configures an embeddable Dashboard.
+type Options struct {
+	// BasePath is the optional URL prefix at which the dashboard is served.
+	BasePath string
+	// SandboxImage is the default image shown in the create-sandbox form.
+	SandboxImage string
+	// AuthToken enables HTTP Basic and bearer-token authentication when set.
+	AuthToken string
+	// Context controls background sandbox creation. It defaults to
+	// context.Background and is canceled by Close.
+	Context context.Context
+	// Logger receives HTTP request logs. It defaults to slog.Default.
+	Logger *slog.Logger
+	// RegisterRoutes adds routes to the dashboard's internal ServeMux. Route
+	// patterns are relative to BasePath and receive the dashboard middleware.
+	RegisterRoutes func(*http.ServeMux)
+}
+
+// Dashboard is an embeddable OpenSandbox dashboard HTTP handler.
+type Dashboard struct {
+	app       *application
+	handler   http.Handler
+	cancel    context.CancelFunc
+	closeOnce sync.Once
+}
+
+// New creates a dashboard backed by client. Templates and web assets are
+// embedded in this package and require no files at runtime.
+func New(client Client, options Options) (*Dashboard, error) {
+	if client == nil {
+		return nil, errors.New("dashboard client is required")
+	}
+
+	basePath, err := normalizeBasePath(options.BasePath)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(options.SandboxImage) == "" {
+		options.SandboxImage = "python:3.12-slim"
+	}
+	if options.Context == nil {
+		options.Context = context.Background()
+	}
+	if options.Logger == nil {
+		options.Logger = slog.Default()
+	}
+
+	appContext, cancel := context.WithCancel(options.Context)
+	app, err := newApplication(
+		"",
+		client,
+		client,
+		client,
+		client,
+		options.SandboxImage,
+		appContext,
+		basePath,
+	)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	handler := csrfProtection(app.routes(options.RegisterRoutes))
+	handler = tokenAuthentication(options.AuthToken, handler)
+	handler = securityHeaders(handler)
+	handler = requestLogger(options.Logger, handler)
+
+	return &Dashboard{app: app, handler: handler, cancel: cancel}, nil
+}
+
+// Handler returns the dashboard's complete HTTP handler, including embedded
+// assets, authentication, CSRF protection, security headers, and request logs.
+// Additional routes can be registered with Options.RegisterRoutes or by
+// mounting this handler as the fallback on an outer http.ServeMux.
+func (dashboard *Dashboard) Handler() http.Handler {
+	return dashboard.handler
+}
+
+// Close cancels dashboard background work and waits for it to finish. It does
+// not close the caller-owned Client. Close is safe to call more than once.
+func (dashboard *Dashboard) Close() {
+	dashboard.closeOnce.Do(func() {
+		dashboard.cancel()
+		dashboard.app.background.Wait()
+	})
+}
+
+// Run starts the osb-dashboard command with args. Most library users should
+// construct a Dashboard with New and mount its Handler instead.
+func Run(args []string) error {
 	config, err := parseCommandConfig(args)
 	if err != nil {
 		return err
@@ -380,19 +466,20 @@ func run(args []string) error {
 		}
 	}()
 
-	appContext, cancelApp := context.WithCancel(context.Background())
-	app, err := newApplication(config.kubeconfigPath, client, client, client, client, config.sandboxImage, appContext, config.basePath)
+	dashboard, err := New(client, Options{
+		BasePath:     config.basePath,
+		SandboxImage: config.sandboxImage,
+		AuthToken:    config.authToken,
+		Logger:       slog.Default(),
+	})
 	if err != nil {
-		cancelApp()
 		return err
 	}
+	defer dashboard.Close()
 
-	handler := csrfProtection(app.routes())
-	handler = tokenAuthentication(config.authToken, handler)
-	handler = securityHeaders(handler)
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           requestLogger(slog.Default(), handler),
+		Handler:           dashboard.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
@@ -418,12 +505,10 @@ func run(args []string) error {
 	slog.Info(
 		"dashboard listening",
 		slog.String("address", addr),
-		slog.String("kubeconfig", app.kubeconfigPath),
-		slog.String("base_path", app.basePath),
+		slog.String("kubeconfig", config.kubeconfigPath),
+		slog.String("base_path", dashboard.app.basePath),
 	)
 	serveErr := server.ListenAndServe()
-	cancelApp()
-	app.background.Wait()
 	if !errors.Is(serveErr, http.ErrServerClosed) {
 		return fmt.Errorf("serve dashboard: %w", serveErr)
 	}
@@ -661,7 +746,7 @@ func (app *application) executeHTMLTemplate(w http.ResponseWriter, tmpl *templat
 	return err
 }
 
-func (app *application) routes() http.Handler {
+func (app *application) routes(routeRegistrars ...func(*http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", app.index)
 	mux.HandleFunc("GET /snapshots", app.snapshotsPage)
@@ -687,6 +772,11 @@ func (app *application) routes() http.Handler {
 	mux.HandleFunc("DELETE /dashboard/sandboxes/{id}", app.deleteSandbox)
 	mux.HandleFunc("GET /healthz", health)
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", app.assets))
+	for _, registerRoutes := range routeRegistrars {
+		if registerRoutes != nil {
+			registerRoutes(mux)
+		}
+	}
 
 	if app.basePath == "" {
 		return mux

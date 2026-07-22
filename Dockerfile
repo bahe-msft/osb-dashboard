@@ -18,7 +18,7 @@ COPY . .
 RUN ./scripts/fetch-ghostty-web.sh \
     && ./scripts/fetch-ui-assets.sh \
     && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-       go build -trimpath -ldflags='-s -w' -o /out/osb-dashboard .
+       go build -trimpath -ldflags='-s -w' -o /out/osb-dashboard ./cmd/osb-dashboard
 
 FROM gcr.io/distroless/static-debian12:nonroot
 

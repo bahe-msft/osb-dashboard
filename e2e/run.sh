@@ -115,7 +115,7 @@ printf 'Preparing frontend dependencies...\n'
 ./scripts/fetch-ui-assets.sh
 
 printf 'Building dashboard...\n'
-go build -o "$run_dir/osb-dashboard" .
+go build -o "$run_dir/osb-dashboard" ./cmd/osb-dashboard
 
 server_args=(
   --kubeconfig "$kubeconfig"

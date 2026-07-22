@@ -18,7 +18,7 @@ Use `--base-path` (or `OSB_DASHBOARD_BASE_PATH`) when the dashboard is exposed
 beneath a URL prefix:
 
 ```bash
-go run . \
+go run ./cmd/osb-dashboard \
   --kubeconfig /path/to/kubeconfig \
   --base-path /dashboard
 ```
@@ -65,7 +65,7 @@ Loopback development can run without authentication. A non-loopback
 ```bash
 HTTP_ADDR=0.0.0.0:8080 \
 OSB_DASHBOARD_AUTH_TOKEN='replace-with-a-strong-token' \
-go run . --kubeconfig /path/to/kubeconfig
+go run ./cmd/osb-dashboard --kubeconfig /path/to/kubeconfig
 ```
 
 Clients may authenticate with either:
@@ -79,6 +79,55 @@ same origin.
 
 For production, terminate TLS at a trusted reverse proxy and keep the dashboard
 on a private network.
+
+## Use as a Go library
+
+The module root is importable as `github.com/bahe-msft/osb-dashboard`. The
+OpenSandbox client package is also public so applications can configure the
+client and mount the dashboard alongside their own routes:
+
+```go
+client, err := opensandbox.NewFromKubeconfig(kubeconfigPath, opensandbox.Options{
+    Namespace:         "opensandbox-system",
+    WorkloadNamespace: "opensandbox",
+})
+if err != nil {
+    return err
+}
+defer client.Close()
+
+app, err := dashboard.New(client, dashboard.Options{
+    SandboxImage: "python:3.12-slim",
+    BasePath:     "/dashboard",
+    RegisterRoutes: func(mux *http.ServeMux) {
+        // Available at /dashboard/api/example and protected by the same
+        // authentication, CSRF, and security middleware as the dashboard.
+        mux.HandleFunc("GET /api/example", exampleHandler)
+    },
+})
+if err != nil {
+    return err
+}
+defer app.Close()
+
+return http.ListenAndServe(":8080", app.Handler())
+```
+
+Use these imports with the example:
+
+```go
+import (
+    "net/http"
+
+    dashboard "github.com/bahe-msft/osb-dashboard"
+    "github.com/bahe-msft/osb-dashboard/opensandbox"
+)
+```
+
+The UI templates and all web assets are embedded in the library with
+`go:embed`, including the Ghostty terminal JavaScript and WebAssembly runtime.
+Callers do not need to copy or serve the `web` directory. The client remains
+caller-owned and must be closed separately.
 
 ## Tests
 
