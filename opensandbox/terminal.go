@@ -58,7 +58,7 @@ func (client *client) OpenPTY(ctx context.Context, sandboxID string) (*websocket
 		return nil, err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	response, err := client.httpClient.Do(request)
+	response, err := client.lifecycleHTTPClient.Do(request)
 	if err != nil {
 		requestErr := fmt.Errorf("create PTY session: %w", err)
 		client.logCall(ctx, "opensandbox", http.MethodPost, createPath, 0, startedAt, requestErr)
@@ -87,7 +87,7 @@ func (client *client) OpenPTY(ctx context.Context, sandboxID string) (*websocket
 		return nil, err
 	}
 	websocketPath := client.terminalPath(sandboxID, "/pty/"+url.PathEscape(payload.SessionID)+"/ws")
-	websocketURL, err := url.Parse(client.serviceProxyURL() + websocketPath)
+	websocketURL, err := url.Parse(client.lifecycleBaseURL() + websocketPath)
 	if err != nil {
 		return nil, fmt.Errorf("build PTY WebSocket URL: %w", err)
 	}
@@ -102,7 +102,7 @@ func (client *client) OpenPTY(ctx context.Context, sandboxID string) (*websocket
 
 	dialStartedAt := time.Now()
 	connection, _, err := websocket.Dial(ctx, websocketURL.String(), &websocket.DialOptions{
-		HTTPClient: client.httpClient,
+		HTTPClient: client.lifecycleHTTPClient,
 		HTTPHeader: http.Header{apiKeyHeader: []string{apiKey}},
 	})
 	if err != nil {
@@ -141,7 +141,7 @@ func (client *client) RunCommand(ctx context.Context, sandboxID, command string)
 	}
 	request.Header.Set("Accept", "text/event-stream")
 	request.Header.Set("Content-Type", "application/json")
-	response, err := client.httpClient.Do(request)
+	response, err := client.lifecycleHTTPClient.Do(request)
 	if err != nil {
 		requestErr := fmt.Errorf("run sandbox command: %w", err)
 		client.logCall(ctx, "opensandbox", http.MethodPost, commandPath, 0, startedAt, requestErr)

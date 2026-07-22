@@ -269,6 +269,77 @@ func TestListSandboxesReturnsCRDResultsWithLifecycleError(t *testing.T) {
 	}
 }
 
+func TestDirectLifecycleEndpointKeepsKubernetesAndLifecycleTransportsSeparate(t *testing.T) {
+	var lifecycleRequests atomic.Int32
+	lifecycleServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lifecycleRequests.Add(1)
+		if r.URL.Path != "/sandboxes" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Header.Get("Authorization") != "" {
+			t.Errorf("lifecycle request received Kubernetes Authorization header")
+		}
+		assertAPIKey(t, r)
+		_ = json.NewEncoder(w).Encode(listResponse{})
+	}))
+	defer lifecycleServer.Close()
+
+	kubeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/namespaces/control/secrets/api-key":
+			_ = json.NewEncoder(w).Encode(kubeSecret{Data: map[string]string{
+				"token": base64.StdEncoding.EncodeToString([]byte("test-key")),
+			}})
+		case "/api/v1/namespaces/workloads/pods":
+			_ = json.NewEncoder(w).Encode(podList{})
+		case "/apis/sandbox.opensandbox.io/v1alpha1/namespaces/workloads/batchsandboxes",
+			"/apis/agents.x-k8s.io/v1alpha1/namespaces/workloads/sandboxes":
+			http.NotFound(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer kubeServer.Close()
+
+	kubeHTTPClient := kubeServer.Client()
+	kubeTransport := kubeHTTPClient.Transport
+	kubeHTTPClient.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		request = request.Clone(request.Context())
+		request.Header.Set("Authorization", "Bearer kube-token")
+		return kubeTransport.RoundTrip(request)
+	})
+	client, err := newClient(kubeServer.URL, kubeHTTPClient, Options{
+		Namespace:         "control",
+		WorkloadNamespace: "workloads",
+		APIKeySecretName:  "api-key",
+		APIKeySecretKey:   "token",
+		LifecycleEndpoint: lifecycleServer.URL,
+	}, nil)
+	if err != nil {
+		t.Fatalf("newClient() error = %v", err)
+	}
+	if _, err := client.ListSandboxes(context.Background()); err != nil {
+		t.Fatalf("ListSandboxes() error = %v", err)
+	}
+	if lifecycleRequests.Load() != 1 {
+		t.Fatalf("lifecycle requests = %d, want 1", lifecycleRequests.Load())
+	}
+}
+
+func TestDirectLifecycleEndpointValidation(t *testing.T) {
+	for _, endpoint := range []string{"ftp://example.test", "http:///missing-host", "https://example.test?query=value"} {
+		_, err := newClient("http://localhost", http.DefaultClient, Options{LifecycleEndpoint: endpoint}, nil)
+		if err == nil {
+			t.Errorf("LifecycleEndpoint %q unexpectedly succeeded", endpoint)
+		}
+	}
+	_, err := newClient("http://localhost", http.DefaultClient, Options{LifecycleHTTPClient: http.DefaultClient}, nil)
+	if err == nil {
+		t.Error("LifecycleHTTPClient without LifecycleEndpoint unexpectedly succeeded")
+	}
+}
+
 func TestNewFromKubeconfig(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/namespaces/opensandbox/pods" {
@@ -650,6 +721,12 @@ func TestCreateSandboxValidation(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "exactly one") {
 		t.Fatalf("CreateSandbox() error = %v", err)
 	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
 }
 
 func assertAPIKey(t *testing.T, request *http.Request) {

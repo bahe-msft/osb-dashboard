@@ -73,7 +73,7 @@ func (client *client) listLifecycleSandboxes(ctx context.Context) ([]Sandbox, er
 		return nil, err
 	}
 
-	response, err := client.httpClient.Do(request)
+	response, err := client.lifecycleHTTPClient.Do(request)
 	if err != nil {
 		requestErr := fmt.Errorf("list lifecycle sandboxes: %w", err)
 		client.logCall(ctx, "opensandbox", http.MethodGet, path, 0, startedAt, requestErr)

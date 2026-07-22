@@ -1,7 +1,7 @@
 // Package opensandbox provides lifecycle API operations and merged discovery
-// across the lifecycle API, BatchSandbox CRDs, and Agent Sandbox CRDs. It uses
-// Kubernetes API proxy requests so the same client works with a local
-// kubeconfig and from inside a cluster.
+// across the lifecycle API, BatchSandbox CRDs, and Agent Sandbox CRDs. It can
+// reach the lifecycle API through the Kubernetes service proxy or a configured
+// direct endpoint while continuing to use Kubernetes for resource discovery.
 package opensandbox
 
 import (
@@ -80,15 +80,26 @@ type Options struct {
 	ServicePort       string
 	APIKeySecretName  string
 	APIKeySecretKey   string
-	Logger            *slog.Logger
+	// LifecycleEndpoint bypasses the Kubernetes service proxy for lifecycle,
+	// command, and terminal requests. Kubernetes discovery and API key loading
+	// continue to use the Kubernetes client.
+	LifecycleEndpoint string
+	// LifecycleHTTPClient optionally supplies the client used with
+	// LifecycleEndpoint. When omitted, a plain client with a 90-second timeout is
+	// used so Kubernetes service-account credentials are not sent upstream.
+	LifecycleHTTPClient *http.Client
+	Logger              *slog.Logger
 }
 
 type client struct {
-	httpClient *http.Client
-	proxyURL   string
-	options    Options
-	logger     *slog.Logger
-	close      func() error
+	httpClient           *http.Client
+	proxyURL             string
+	lifecycleHTTPClient  *http.Client
+	lifecycleClientOwned bool
+	lifecycleURL         string
+	options              Options
+	logger               *slog.Logger
+	close                func() error
 
 	apiKeyMutex sync.Mutex
 	apiKey      string
@@ -168,12 +179,40 @@ func newClient(proxyURL string, httpClient *http.Client, options Options, closeC
 		logger = slog.Default()
 	}
 
+	lifecycleURL := ""
+	lifecycleHTTPClient := httpClient
+	lifecycleClientOwned := false
+	if strings.TrimSpace(options.LifecycleEndpoint) == "" && options.LifecycleHTTPClient != nil {
+		return nil, errors.New("lifecycle HTTP client requires a lifecycle endpoint")
+	}
+	if strings.TrimSpace(options.LifecycleEndpoint) != "" {
+		parsed, err := url.Parse(options.LifecycleEndpoint)
+		if err != nil {
+			return nil, fmt.Errorf("parse lifecycle endpoint: %w", err)
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return nil, errors.New("lifecycle endpoint must use http or https")
+		}
+		if parsed.Host == "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+			return nil, errors.New("lifecycle endpoint must include a host and must not include query or fragment")
+		}
+		lifecycleURL = strings.TrimRight(parsed.String(), "/")
+		lifecycleHTTPClient = options.LifecycleHTTPClient
+		if lifecycleHTTPClient == nil {
+			lifecycleHTTPClient = &http.Client{Timeout: 90 * time.Second}
+			lifecycleClientOwned = true
+		}
+	}
+
 	return &client{
-		httpClient: httpClient,
-		proxyURL:   strings.TrimRight(proxyURL, "/"),
-		options:    options,
-		logger:     logger,
-		close:      closeClient,
+		httpClient:           httpClient,
+		proxyURL:             strings.TrimRight(proxyURL, "/"),
+		lifecycleHTTPClient:  lifecycleHTTPClient,
+		lifecycleClientOwned: lifecycleClientOwned,
+		lifecycleURL:         lifecycleURL,
+		options:              options,
+		logger:               logger,
+		close:                closeClient,
 	}, nil
 }
 
@@ -200,6 +239,9 @@ func (options Options) withDefaults() Options {
 }
 
 func (client *client) Close() error {
+	if client.lifecycleClientOwned {
+		client.lifecycleHTTPClient.CloseIdleConnections()
+	}
 	return client.close()
 }
 
@@ -208,7 +250,7 @@ func (client *client) newAPIRequest(ctx context.Context, method, path string, bo
 	if err != nil {
 		return nil, err
 	}
-	request, err := http.NewRequestWithContext(ctx, method, client.serviceProxyURL()+path, bodyReader)
+	request, err := http.NewRequestWithContext(ctx, method, client.lifecycleBaseURL()+path, bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("create OpenSandbox request: %w", err)
 	}
@@ -284,7 +326,10 @@ func (client *client) logCall(
 	client.logger.LogAttrs(ctx, level, "upstream request", attributes...)
 }
 
-func (client *client) serviceProxyURL() string {
+func (client *client) lifecycleBaseURL() string {
+	if client.lifecycleURL != "" {
+		return client.lifecycleURL
+	}
 	return fmt.Sprintf(
 		"%s/api/v1/namespaces/%s/services/http:%s:%s/proxy",
 		client.proxyURL,

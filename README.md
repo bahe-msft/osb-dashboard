@@ -129,6 +129,24 @@ The UI templates and all web assets are embedded in the library with
 Callers do not need to copy or serve the `web` directory. The client remains
 caller-owned and must be closed separately.
 
+### Direct in-cluster lifecycle access
+
+By default, lifecycle operations use the Kubernetes Service proxy. An in-cluster
+host can bypass that proxy while retaining Kubernetes discovery and API-key
+loading:
+
+```go
+client, err := opensandbox.NewInCluster(opensandbox.Options{
+    Namespace:         "opensandbox-system",
+    WorkloadNamespace: "opensandbox",
+    LifecycleEndpoint: "http://opensandbox-server.opensandbox-system.svc.cluster.local",
+})
+```
+
+A direct endpoint uses a separate plain HTTP client by default, preventing the
+Kubernetes service-account bearer token from being forwarded to OpenSandbox.
+Use `LifecycleHTTPClient` only when the endpoint requires a custom transport.
+
 ## Tests
 
 ```bash
