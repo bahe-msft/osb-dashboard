@@ -28,7 +28,7 @@ func (client *client) ListSnapshots(ctx context.Context) ([]Snapshot, error) {
 			return snapshots, err
 		}
 
-		response, err := client.httpClient.Do(request)
+		response, err := client.lifecycleHTTPClient.Do(request)
 		if err != nil {
 			requestErr := fmt.Errorf("list snapshots: %w", err)
 			client.logCall(ctx, "opensandbox", http.MethodGet, path, 0, startedAt, requestErr)
@@ -82,7 +82,7 @@ func (client *client) GetSnapshot(ctx context.Context, snapshotID string) (Snaps
 		client.logCall(ctx, "opensandbox", http.MethodGet, path, 0, startedAt, err)
 		return Snapshot{}, err
 	}
-	response, err := client.httpClient.Do(request)
+	response, err := client.lifecycleHTTPClient.Do(request)
 	if err != nil {
 		requestErr := fmt.Errorf("get snapshot: %w", err)
 		client.logCall(ctx, "opensandbox", http.MethodGet, path, 0, startedAt, requestErr)
@@ -133,7 +133,7 @@ func (client *client) CreateSnapshot(ctx context.Context, sandboxID, name string
 		return Snapshot{}, err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	response, err := client.httpClient.Do(request)
+	response, err := client.lifecycleHTTPClient.Do(request)
 	if err != nil {
 		requestErr := fmt.Errorf("create snapshot: %w", err)
 		client.logCall(ctx, "opensandbox", http.MethodPost, path, 0, startedAt, requestErr)
@@ -179,7 +179,7 @@ func (client *client) DeleteSnapshot(ctx context.Context, snapshotID string) err
 		client.logCall(ctx, "opensandbox", http.MethodDelete, path, 0, startedAt, err)
 		return err
 	}
-	response, err := client.httpClient.Do(request)
+	response, err := client.lifecycleHTTPClient.Do(request)
 	if err != nil {
 		requestErr := fmt.Errorf("delete snapshot: %w", err)
 		client.logCall(ctx, "opensandbox", http.MethodDelete, path, 0, startedAt, requestErr)

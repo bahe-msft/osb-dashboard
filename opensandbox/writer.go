@@ -57,7 +57,7 @@ func (client *client) CreateSandbox(ctx context.Context, request CreateSandboxRe
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
 
-	response, err := client.httpClient.Do(httpRequest)
+	response, err := client.lifecycleHTTPClient.Do(httpRequest)
 	if err != nil {
 		requestErr := fmt.Errorf("create sandbox: %w", err)
 		client.logCall(ctx, "opensandbox", http.MethodPost, path, 0, startedAt, requestErr)
@@ -115,7 +115,7 @@ func (client *client) changeLifecycleSandboxState(ctx context.Context, sandboxID
 		client.logCall(ctx, "opensandbox", http.MethodPost, path, 0, startedAt, err)
 		return err
 	}
-	response, err := client.httpClient.Do(request)
+	response, err := client.lifecycleHTTPClient.Do(request)
 	if err != nil {
 		requestErr := fmt.Errorf("%s lifecycle sandbox: %w", action, err)
 		client.logCall(ctx, "opensandbox", http.MethodPost, path, 0, startedAt, requestErr)
@@ -185,7 +185,7 @@ func (client *client) deleteLifecycleSandbox(ctx context.Context, sandboxID stri
 		client.logCall(ctx, "opensandbox", http.MethodDelete, path, 0, startedAt, err)
 		return false, err
 	}
-	response, err := client.httpClient.Do(request)
+	response, err := client.lifecycleHTTPClient.Do(request)
 	if err != nil {
 		requestErr := fmt.Errorf("delete lifecycle sandbox: %w", err)
 		client.logCall(ctx, "opensandbox", http.MethodDelete, path, 0, startedAt, requestErr)
