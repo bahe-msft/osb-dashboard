@@ -559,6 +559,26 @@ button.nav-item {
   overscroll-behavior: contain;
 }
 
+/*
+ * Top-bar breadcrumb contract
+ *
+ * - Build the hierarchy with `.topbar-breadcrumb` and `/` separators using
+ *   `.topbar-breadcrumb-sep`.
+ * - Navigable ancestors must be native `<a>` elements. Static hierarchy labels
+ *   use `.topbar-breadcrumb-label`; the current resource uses
+ *   `.topbar-breadcrumb-current`. Static segments must not receive link roles,
+ *   pointer cursors, or hover behavior.
+ * - Pool sandbox details use:
+ *   `Pools / <pool-name> / Sandboxes / <sandbox-id>`.
+ *   Only `Pools` and `<pool-name>` are links. `Sandboxes` and the sandbox ID are
+ *   static. Do not apply `copyable-value` to that contextual sandbox ID.
+ * - Preserve parent context in URLs and HTMX refreshes (for example,
+ *   `?pool=<pool-name>`), and keep the parent sidebar item active. Lifecycle
+ *   actions and browser history must retain the same hierarchy.
+ * - Keep breadcrumbs on one line. Segments may truncate with an ellipsis, but
+ *   the component must not introduce horizontal overflow at narrow widths.
+ * - Links retain native keyboard behavior and the shared visible focus style.
+ */
 .topbar-breadcrumb {
   display: flex;
   min-width: 0;
@@ -579,6 +599,15 @@ button.nav-item {
 
 .topbar-breadcrumb a:hover {
   color: var(--os-text);
+}
+
+.topbar-breadcrumb-label {
+  overflow: hidden;
+  max-width: 14rem;
+  color: var(--os-muted);
+  font-weight: 580;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topbar-breadcrumb-sep {
@@ -840,12 +869,41 @@ button.nav-item {
   white-space: nowrap;
 }
 
+.pool-acquire-prompt {
+  margin: 0;
+  color: var(--os-text);
+  font-size: 13px;
+}
+
+.pool-acquire-prompt output {
+  font: 600 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 .app-form-field select {
   cursor: pointer;
 }
 
 #create-sandbox-form {
   overflow: visible;
+}
+
+#create-sandbox-form[data-create-mode="pool"] {
+  display: flex;
+  min-height: 13.5rem;
+  flex-direction: column;
+}
+
+#create-sandbox-form[data-create-mode="pool"] > .create-sandbox-fields,
+#create-sandbox-form[data-create-mode="pool"] > #deploy-snapshot-result:not(:empty),
+#create-sandbox-form[data-create-mode="pool"] #sandbox-deployment-result-content,
+#create-sandbox-form[data-create-mode="pool"] .snapshot-create-result {
+  flex: 1;
+}
+
+#create-sandbox-form[data-create-mode="pool"] > #deploy-snapshot-result:not(:empty),
+#create-sandbox-form[data-create-mode="pool"] #sandbox-deployment-result-content {
+  display: flex;
+  flex-direction: column;
 }
 
 .app-form-field > .preset-input-control {
@@ -2633,6 +2691,229 @@ button.nav-item {
   stroke-width: 2;
 }
 
+.pool-count-pill,
+.pool-count-pill:hover {
+  background: var(--os-active);
+  cursor: default;
+}
+
+.pool-group > .group-header {
+  cursor: default;
+}
+
+.pool-empty-state {
+  cursor: default;
+}
+
+.pool-empty-state:hover {
+  border-color: var(--os-border);
+  background: transparent;
+}
+
+.pool-list {
+  padding: 8px 0;
+}
+
+.pool-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(170px, auto);
+  grid-template-rows: auto auto;
+  min-height: 66px;
+  align-items: center;
+  gap: 4px 18px;
+  margin: 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.pool-row:hover {
+  background: var(--os-hover);
+}
+
+.pool-row > .status-ring {
+  grid-row: 1 / 3;
+}
+
+.pool-identity {
+  display: flex;
+  min-width: 0;
+  grid-column: 2;
+  grid-row: 1;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.pool-identity strong {
+  overflow: hidden;
+  color: var(--os-text);
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pool-identity span {
+  overflow: hidden;
+  color: var(--os-subtle);
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pool-runtime,
+.pool-specs {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  color: var(--os-subtle);
+  font-size: 11px;
+}
+
+.pool-runtime {
+  overflow: hidden;
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.pool-runtime span,
+.pool-specs span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.pool-runtime span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pool-runtime svg,
+.pool-specs svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  stroke-width: 1.8;
+}
+
+.pool-capacity {
+  display: grid;
+  grid-column: 3;
+  grid-row: 1 / 3;
+  grid-template-columns: repeat(3, minmax(48px, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--os-border-soft);
+  border-radius: 8px;
+}
+
+.pool-capacity > span {
+  display: grid;
+  min-width: 58px;
+  padding: 2px 7px;
+  text-align: center;
+}
+
+.pool-capacity strong {
+  color: var(--os-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.pool-capacity small {
+  color: var(--os-subtle);
+  font-size: 9px;
+}
+
+.pool-specs {
+  grid-column: 4;
+  grid-row: 1;
+  justify-content: flex-end;
+}
+
+.pool-row-meta {
+  display: flex;
+  grid-column: 4;
+  grid-row: 2;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--os-subtle);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.pool-detail-body {
+  display: grid;
+  gap: 16px;
+}
+
+.pool-active-section {
+  display: grid;
+  gap: 8px;
+}
+
+.snapshot-detail-panel.pool-active-panel {
+  overflow: hidden;
+  padding: 0;
+}
+
+.pool-active-header {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.pool-active-header h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.pool-active-header .count {
+  color: var(--os-subtle);
+  font-size: 12px;
+}
+
+.pool-sandbox-row {
+  color: inherit;
+  text-decoration: none;
+}
+
+.pool-sandbox-meta {
+  justify-content: center;
+}
+
+.pool-active-empty {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 32px 20px;
+  color: var(--os-muted);
+  text-align: center;
+}
+
+.pool-active-empty strong {
+  color: var(--os-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.pool-active-empty p {
+  margin: 5px 0 0;
+  color: var(--os-subtle);
+  font-size: 12px;
+}
+
 .snapshot-detail-header {
   display: flex;
   min-height: 82px;
@@ -2904,7 +3185,8 @@ button.nav-item {
 }
 
 .status-ring[data-status="pending"],
-.status-ring[data-status="creating"] {
+.status-ring[data-status="creating"],
+.status-ring[data-status="at-capacity"] {
   border-color: var(--os-warning);
 }
 
@@ -2921,7 +3203,8 @@ button.nav-item {
 }
 
 .status-ring[data-status="failed"],
-.status-ring[data-status="canceled"] {
+.status-ring[data-status="canceled"],
+.status-ring[data-status="degraded"] {
   border-color: var(--os-danger);
 }
 
@@ -3156,6 +3439,54 @@ button.nav-item {
 
   .snapshot-detail-properties {
     grid-template-columns: 1fr;
+  }
+
+  .pool-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: repeat(5, auto);
+    row-gap: 5px;
+  }
+
+  .pool-row > .status-ring {
+    grid-row: 1 / 6;
+  }
+
+  .pool-identity,
+  .pool-runtime,
+  .pool-capacity,
+  .pool-specs,
+  .pool-row-meta {
+    grid-column: 2;
+  }
+
+  .pool-identity {
+    grid-row: 1;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .pool-runtime {
+    grid-row: 2;
+  }
+
+  .pool-capacity {
+    grid-row: 3;
+    justify-self: start;
+  }
+
+  .pool-specs {
+    grid-row: 4;
+    justify-content: flex-start;
+  }
+
+  .pool-row-meta {
+    grid-row: 5;
+    justify-content: flex-start;
+  }
+
+  .pool-row-meta time {
+    display: none;
   }
 
   .snapshot-row-actions {

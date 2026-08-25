@@ -17,6 +17,7 @@
 </span>
 <span id="sandbox-nav-count" class="nav-item-count" hx-swap-oob="true">{{.Total}}</span>
 <span id="snapshot-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SnapshotTotal}}</span>
+<span id="pool-nav-count" class="nav-item-count" hx-swap-oob="true">{{.PoolTotal}}</span>
 
 <div class="filter-tabs" aria-label="Filter sandboxes by state">
   <button class="filter-pill" type="button" data-state-filter="all" data-active="true" aria-pressed="true">
@@ -64,18 +65,7 @@
             hx-push-url="/dashboard/sandboxes/{{urlquery .ID}}"
             hx-trigger="click"
           >
-            <span class="status-ring" data-status="{{.State}}" aria-hidden="true"></span>
-            <div class="sandbox-headline">
-              <span class="sandbox-name">{{.Name}}</span>
-            </div>
-            <span class="sandbox-updated">
-              <span class="sandbox-runtime" title="{{.Namespace}} / {{.PodName}}">{{.Namespace}} / {{.PodName}}</span>
-            </span>
-            <span class="sandbox-specs" title="{{.Image}} · {{.Resources}}">
-              <span class="sandbox-image"><i data-lucide="disc" aria-hidden="true"></i><span>{{.Image}}</span></span>
-              <span class="metadata-separator" aria-hidden="true">·</span>
-              <span class="sandbox-resources"><i data-lucide="cpu" aria-hidden="true"></i><span>{{.Resources}}</span></span>
-            </span>
+            {{template "sandbox-row-core" .}}
             <span class="sandbox-row-actions">
               <button
                 class="sandbox-delete-button"

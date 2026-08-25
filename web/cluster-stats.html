@@ -13,6 +13,7 @@
   <span id="page-toolbar-action" class="toolbar-action" hx-swap-oob="true"></span>
   <span id="sandbox-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SandboxTotal}}</span>
   <span id="snapshot-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SnapshotTotal}}</span>
+  <span id="pool-nav-count" class="nav-item-count" hx-swap-oob="true">{{.PoolTotal}}</span>
 
   {{if .Error}}
     <div class="dashboard-error" role="alert">
@@ -107,7 +108,7 @@
           {{range .RecentEvents}}
             <div class="cluster-events-row" role="row" data-event-type="{{.Type}}">
               <time role="cell" datetime="{{.LastSeenISO}}" data-created-time data-no-prefix>{{.LastSeenFallback}}</time>
-              <a role="cell" href="/dashboard/sandboxes/{{urlquery .SandboxID}}" hx-get="/dashboard/sandboxes/{{urlquery .SandboxID}}/fragment" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/dashboard/sandboxes/{{urlquery .SandboxID}}" title="{{.SandboxID}}">{{.SandboxIDShort}}</a>
+              <a role="cell" href="/sandboxes/{{urlquery .SandboxID}}" hx-get="/dashboard/sandboxes/{{urlquery .SandboxID}}/fragment" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/sandboxes/{{urlquery .SandboxID}}" title="{{.SandboxID}}">{{.SandboxIDShort}}</a>
               <span role="cell" class="cluster-event-reason"><strong>{{.Reason}}</strong><small>{{.Type}}</small></span>
               <span role="cell" class="cluster-event-message" title="{{.Message}}">{{.Message}}</span>
               <span role="cell" class="cluster-event-count">{{.Count}}</span>

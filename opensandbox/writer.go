@@ -17,8 +17,9 @@ import (
 func (client *client) CreateSandbox(ctx context.Context, request CreateSandboxRequest) (Sandbox, error) {
 	hasImage := strings.TrimSpace(request.Image) != ""
 	hasSnapshot := strings.TrimSpace(request.SnapshotID) != ""
-	if hasImage == hasSnapshot {
-		return Sandbox{}, errors.New("exactly one of sandbox image or snapshot ID is required")
+	hasPool := strings.TrimSpace(request.PoolRef) != ""
+	if sourceCount := boolInt(hasImage) + boolInt(hasSnapshot) + boolInt(hasPool); sourceCount != 1 {
+		return Sandbox{}, errors.New("exactly one of sandbox image, snapshot ID, or pool reference is required")
 	}
 	if hasImage && len(request.Entrypoint) == 0 {
 		return Sandbox{}, errors.New("sandbox entrypoint is required")
@@ -26,7 +27,7 @@ func (client *client) CreateSandbox(ctx context.Context, request CreateSandboxRe
 	if request.Timeout < 0 {
 		return Sandbox{}, errors.New("sandbox timeout must not be negative")
 	}
-	if len(request.ResourceLimits) == 0 {
+	if !hasPool && len(request.ResourceLimits) == 0 {
 		return Sandbox{}, errors.New("sandbox resource limits are required")
 	}
 
@@ -38,6 +39,9 @@ func (client *client) CreateSandbox(ctx context.Context, request CreateSandboxRe
 	}
 	if hasImage {
 		payload.Image = &apiSandboxImage{URI: strings.TrimSpace(request.Image)}
+	}
+	if hasPool {
+		payload.Extensions = map[string]string{"poolRef": strings.TrimSpace(request.PoolRef)}
 	}
 	if request.Timeout > 0 {
 		timeoutSeconds := int(request.Timeout.Seconds())
@@ -271,6 +275,13 @@ func (client *client) deleteCustomResource(ctx context.Context, resource Resourc
 		slog.String("namespace", resource.Namespace),
 	)
 	return true, nil
+}
+
+func boolInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
 }
 
 func contains(values []string, wanted string) bool {

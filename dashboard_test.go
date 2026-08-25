@@ -19,6 +19,7 @@ import (
 
 type fakeSandboxService struct {
 	sandboxes    []opensandbox.Sandbox
+	pools        []opensandbox.Pool
 	snapshots    []opensandbox.Snapshot
 	nodeLoads    []opensandbox.SandboxNodeLoad
 	podEvents    map[string][]opensandbox.SandboxEvent
@@ -27,6 +28,18 @@ type fakeSandboxService struct {
 
 type noBashSandboxService struct {
 	*fakeSandboxService
+}
+
+type noExecdSandboxService struct {
+	*fakeSandboxService
+}
+
+func (service *noExecdSandboxService) RunCommand(context.Context, string, string) (opensandbox.CommandResult, error) {
+	return opensandbox.CommandResult{}, &opensandbox.HTTPStatusError{
+		Operation:  "run sandbox command",
+		StatusCode: http.StatusBadGateway,
+		Message:    "Bad Gateway",
+	}
 }
 
 func (service *noBashSandboxService) RunCommand(ctx context.Context, sandboxID, command string) (opensandbox.CommandResult, error) {
@@ -38,6 +51,19 @@ func (service *noBashSandboxService) RunCommand(ctx context.Context, sandboxID, 
 
 func (service *fakeSandboxService) ListSandboxes(context.Context) ([]opensandbox.Sandbox, error) {
 	return append([]opensandbox.Sandbox(nil), service.sandboxes...), nil
+}
+
+func (service *fakeSandboxService) ListPools(context.Context) ([]opensandbox.Pool, error) {
+	return append([]opensandbox.Pool(nil), service.pools...), nil
+}
+
+func (service *fakeSandboxService) GetPool(_ context.Context, name string) (opensandbox.Pool, error) {
+	for _, pool := range service.pools {
+		if pool.Name == name {
+			return pool, nil
+		}
+	}
+	return opensandbox.Pool{}, errors.New("pool not found")
 }
 
 func (service *fakeSandboxService) ListSnapshots(context.Context) ([]opensandbox.Snapshot, error) {
@@ -71,12 +97,16 @@ func (service *fakeSandboxService) CreateSandbox(_ context.Context, request open
 	if request.SnapshotID != "" {
 		image = "restored:" + request.SnapshotID
 		state = "Pending"
+	} else if request.PoolRef != "" {
+		image = "pool:" + request.PoolRef
+		state = "Pending"
 	}
 	sandbox := opensandbox.Sandbox{
 		ID:        "sandbox-created",
 		State:     state,
 		CreatedAt: time.Date(2026, time.July, 19, 12, 0, 0, 0, time.UTC),
 		Image:     image,
+		PoolRef:   request.PoolRef,
 		Metadata:  request.Metadata,
 		Sources:   []string{opensandbox.SourceLifecycle},
 	}
@@ -327,6 +357,128 @@ func TestCreateSandboxRequestRestoresSnapshot(t *testing.T) {
 	}
 }
 
+func TestCreateSandboxRequestAcquiresFromPool(t *testing.T) {
+	app := &application{sandboxImage: "default:image"}
+	form := url.Values{"poolRef": {"default-pool"}}
+	request := httptest.NewRequest(http.MethodPost, "/dashboard/sandboxes", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	result, err := app.createSandboxRequest(request)
+	if err != nil {
+		t.Fatalf("createSandboxRequest() error = %v", err)
+	}
+	if result.PoolRef != "default-pool" || result.Image != "" || result.SnapshotID != "" || len(result.Entrypoint) != 0 || len(result.ResourceLimits) != 0 {
+		t.Errorf("createSandboxRequest() = %#v", result)
+	}
+	if result.Metadata["createdBy"] != "osb-dashboard" {
+		t.Errorf("Metadata = %#v", result.Metadata)
+	}
+}
+
+func TestCreateSandboxRequestRejectsPoolWithImage(t *testing.T) {
+	app := &application{sandboxImage: "default:image"}
+	form := url.Values{"poolRef": {"default-pool"}, "image": {"custom:image"}}
+	request := httptest.NewRequest(http.MethodPost, "/dashboard/sandboxes", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	_, err := app.createSandboxRequest(request)
+	if err == nil || !strings.Contains(err.Error(), "exactly one") {
+		t.Fatalf("createSandboxRequest() error = %v", err)
+	}
+}
+
+func TestPoolToViewState(t *testing.T) {
+	tests := []struct {
+		name      string
+		pool      opensandbox.Pool
+		wantState string
+		wantLabel string
+	}{
+		{
+			name:      "ready",
+			pool:      opensandbox.Pool{Total: 1, Available: 1, PoolMin: 1, PoolMax: 2, BufferMin: 1},
+			wantState: "ready",
+			wantLabel: "Ready",
+		},
+		{
+			name:      "scaling while capacity can grow",
+			pool:      opensandbox.Pool{Total: 1, Allocated: 1, PoolMin: 1, PoolMax: 2, BufferMin: 1},
+			wantState: "pending",
+			wantLabel: "Scaling",
+		},
+		{
+			name:      "at capacity when fully allocated at maximum",
+			pool:      opensandbox.Pool{Total: 2, Allocated: 2, PoolMin: 1, PoolMax: 2, BufferMin: 1},
+			wantState: "at-capacity",
+			wantLabel: "At capacity",
+		},
+		{
+			name:      "degraded when capacity is unavailable at maximum",
+			pool:      opensandbox.Pool{Total: 2, Allocated: 1, PoolMin: 1, PoolMax: 2, BufferMin: 1},
+			wantState: "degraded",
+			wantLabel: "Degraded",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			view := poolToView(test.pool)
+			if view.State != test.wantState || view.StateLabel != test.wantLabel {
+				t.Errorf("poolToView() state = %q label = %q, want %q / %q", view.State, view.StateLabel, test.wantState, test.wantLabel)
+			}
+		})
+	}
+}
+
+func TestPoolDetailListsActiveSandboxes(t *testing.T) {
+	createdAt := time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC)
+	service := &fakeSandboxService{
+		pools: []opensandbox.Pool{{
+			Name: "default-pool", Image: "python:3.12-slim", CPU: "1", Memory: "2Gi",
+			PoolMin: 1, PoolMax: 2, BufferMin: 1, BufferMax: 2, Total: 2, Allocated: 2,
+		}},
+		sandboxes: []opensandbox.Sandbox{
+			{ID: "pooled-active", State: "Running", PoolRef: "default-pool", Namespace: "opensandbox", PodName: "pool-pod-1", CreatedAt: createdAt},
+			{ID: "pooled-failed", State: "Failed", PoolRef: "default-pool", Namespace: "opensandbox", PodName: "pool-pod-2", CreatedAt: createdAt},
+			{ID: "other-pool", State: "Running", PoolRef: "other-pool", Namespace: "opensandbox", PodName: "other-pod", CreatedAt: createdAt},
+		},
+	}
+	app, err := newApplication("", service, service, service, service, "python:3.12-slim", context.Background())
+	if err != nil {
+		t.Fatalf("newApplication() error = %v", err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/dashboard/pools/default-pool/fragment", nil)
+	response := httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+	body := response.Body.String()
+	for _, expected := range []string{"Active sandboxes", "pooled-active", "pool-pod-1", `href="/sandboxes/pooled-active?pool=default-pool"`, `hx-get="/dashboard/sandboxes/pooled-active/fragment?pool=default-pool"`} {
+		if !strings.Contains(body, expected) {
+			t.Errorf("response does not contain %q: %s", expected, body)
+		}
+	}
+	for _, unexpected := range []string{"pooled-failed", "other-pool", "other-pod"} {
+		if strings.Contains(body, unexpected) {
+			t.Errorf("response unexpectedly contains %q: %s", unexpected, body)
+		}
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/dashboard/sandboxes/pooled-active/fragment?pool=default-pool", nil)
+	response = httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("contextual sandbox status = %d, want %d", response.Code, http.StatusOK)
+	}
+	body = response.Body.String()
+	for _, expected := range []string{`data-parent-pool="default-pool"`, `href="/pools/default-pool"`, `hx-get="/dashboard/pools/default-pool/fragment"`, `<span class="topbar-breadcrumb-label">Sandboxes</span>`, `<span class="topbar-breadcrumb-current" title="pooled-active">pooled-active</span>`, `python:3.12-slim`, `1 core / 2 GiB`} {
+		if !strings.Contains(body, expected) {
+			t.Errorf("contextual sandbox response does not contain %q: %s", expected, body)
+		}
+	}
+}
+
 func TestCreateSandboxRequestRejectsInvalidResourcePreset(t *testing.T) {
 	app := &application{sandboxImage: "default:image"}
 	request := httptest.NewRequest(http.MethodPost, "/dashboard/sandboxes", strings.NewReader("resourcePreset=invalid"))
@@ -342,6 +494,7 @@ func TestSandboxDetailFromSandboxHidesInternalMetadata(t *testing.T) {
 	data := sandboxDetailFromSandbox(opensandbox.Sandbox{
 		ID:      "sandbox-1",
 		State:   "Running",
+		PoolRef: "default-pool",
 		Sources: []string{opensandbox.SourceLifecycle, opensandbox.SourceBatchSandbox},
 		Metadata: map[string]string{
 			"createdBy":                "osb-dashboard",
@@ -352,6 +505,9 @@ func TestSandboxDetailFromSandboxHidesInternalMetadata(t *testing.T) {
 
 	if data.Sources != "Lifecycle API + BatchSandbox" {
 		t.Errorf("Sources = %q", data.Sources)
+	}
+	if data.PoolRef != "default-pool" {
+		t.Errorf("PoolRef = %q", data.PoolRef)
 	}
 	if len(data.Metadata) != 1 || data.Metadata[0].Label != "team" || data.Metadata[0].Value != "platform" {
 		t.Errorf("Metadata = %#v", data.Metadata)
@@ -464,6 +620,39 @@ func TestTerminalPropagatesMissingBashError(t *testing.T) {
 		t.Fatalf("read terminal error: %v", err)
 	}
 	if messageType != websocket.MessageText || !strings.Contains(string(message), "Bash is not installed") {
+		t.Errorf("terminal message = %q", message)
+	}
+}
+
+func TestTerminalExplainsMissingExecd(t *testing.T) {
+	service := &noExecdSandboxService{fakeSandboxService: &fakeSandboxService{}}
+	app, err := newApplication(
+		"/tmp/test-kubeconfig",
+		service,
+		service,
+		service,
+		service,
+		"python:3.12-slim",
+		context.Background(),
+	)
+	if err != nil {
+		t.Fatalf("newApplication() error = %v", err)
+	}
+	server := httptest.NewServer(app.routes())
+	defer server.Close()
+
+	websocketURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/dashboard/sandboxes/no-execd/terminal/pty"
+	connection, _, err := websocket.Dial(context.Background(), websocketURL, nil)
+	if err != nil {
+		t.Fatalf("dial terminal WebSocket: %v", err)
+	}
+	defer connection.Close(websocket.StatusNormalClosure, "")
+
+	messageType, message, err := connection.Read(context.Background())
+	if err != nil {
+		t.Fatalf("read terminal error: %v", err)
+	}
+	if messageType != websocket.MessageText || !strings.Contains(string(message), "execd is not enabled") || !strings.Contains(string(message), "web terminal is unavailable") {
 		t.Errorf("terminal message = %q", message)
 	}
 }
@@ -712,6 +901,17 @@ func TestBasePathRoutes(t *testing.T) {
 			`data-page="snapshots"`,
 			`hx-get="/dashboard/dashboard/snapshots"`,
 		}},
+		{path: "/dashboard/pools", status: http.StatusOK, contains: []string{
+			`data-page="pools"`,
+			`hx-get="/dashboard/dashboard/pools"`,
+		}},
+		{path: "/dashboard/dashboard/pools", status: http.StatusOK, contains: []string{
+			`No pools yet`,
+		}},
+		{path: "/dashboard/pools/default-pool", status: http.StatusOK, contains: []string{
+			`data-page="pool-detail"`,
+			`hx-get="/dashboard/dashboard/pools/default-pool/fragment"`,
+		}},
 		{path: "/dashboard/stats", status: http.StatusOK, contains: []string{
 			`data-page="stats"`,
 			`hx-get="/dashboard/dashboard/stats"`,
@@ -749,8 +949,57 @@ func TestBasePathRoutes(t *testing.T) {
 	}
 }
 
-func TestRoutes(t *testing.T) {
+func TestCreateSandboxFromPoolRoute(t *testing.T) {
 	service := &fakeSandboxService{}
+	app, err := newApplication(
+		"/tmp/test-kubeconfig",
+		service,
+		service,
+		service,
+		service,
+		"python:3.12-slim",
+		context.Background(),
+	)
+	if err != nil {
+		t.Fatalf("newApplication() error = %v", err)
+	}
+
+	form := url.Values{"poolRef": {"default-pool"}}
+	request := httptest.NewRequest(http.MethodPost, "/dashboard/sandboxes", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	app.routes().ServeHTTP(response, request)
+	app.background.Wait()
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if got := response.Header().Get("HX-Trigger"); got != "sandboxDeploymentStarted" {
+		t.Errorf("HX-Trigger = %q, want sandboxDeploymentStarted", got)
+	}
+	for _, expected := range []string{"Acquiring sandbox from pool", "Pool:</span> <code title=\"default-pool\">default-pool", "poolRef=default-pool"} {
+		if !strings.Contains(response.Body.String(), expected) {
+			t.Errorf("response does not contain %q: %s", expected, response.Body.String())
+		}
+	}
+}
+
+func TestRoutes(t *testing.T) {
+	service := &fakeSandboxService{pools: []opensandbox.Pool{{
+		Name:         "default-pool",
+		Namespace:    "opensandbox",
+		CreatedAt:    time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC),
+		Image:        "python:3.12-slim",
+		CPU:          "1",
+		Memory:       "2Gi",
+		RuntimeClass: "kata-vm-isolation",
+		BufferMin:    1,
+		BufferMax:    2,
+		PoolMin:      1,
+		PoolMax:      2,
+		Total:        1,
+		Available:    1,
+	}}}
 	app, err := newApplication(
 		"/tmp/test-kubeconfig",
 		service,
@@ -814,6 +1063,34 @@ func TestRoutes(t *testing.T) {
 			path:        "/dashboard/snapshots",
 			contentType: "text/html; charset=utf-8",
 			contains:    "No snapshots yet",
+		},
+		{
+			name:        "pools page",
+			method:      http.MethodGet,
+			path:        "/pools",
+			contentType: "text/html; charset=utf-8",
+			contains:    "hx-get=\"/dashboard/pools\"",
+		},
+		{
+			name:        "pools fragment",
+			method:      http.MethodGet,
+			path:        "/dashboard/pools",
+			contentType: "text/html; charset=utf-8",
+			contains:    "href=\"/pools/default-pool\"",
+		},
+		{
+			name:        "pool detail page",
+			method:      http.MethodGet,
+			path:        "/pools/default-pool",
+			contentType: "text/html; charset=utf-8",
+			contains:    "hx-get=\"/dashboard/pools/default-pool/fragment\"",
+		},
+		{
+			name:        "pool detail fragment",
+			method:      http.MethodGet,
+			path:        "/dashboard/pools/default-pool/fragment",
+			contentType: "text/html; charset=utf-8",
+			contains:    "Pool range",
 		},
 		{
 			name:        "create sandbox",

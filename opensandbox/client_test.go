@@ -124,6 +124,48 @@ func TestReadAndWriteOperations(t *testing.T) {
 	}
 }
 
+func TestCreateSandboxFromPool(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/namespaces/test/secrets/api-key":
+			_ = json.NewEncoder(w).Encode(kubeSecret{Data: map[string]string{
+				"token": base64.StdEncoding.EncodeToString([]byte("test-key")),
+			}})
+		case "/api/v1/namespaces/test/services/http:lifecycle:http/proxy/sandboxes":
+			var request apiCreateRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Errorf("decode create request: %v", err)
+			}
+			if request.Extensions["poolRef"] != "default-pool" || request.Image != nil || request.SnapshotID != "" || len(request.ResourceLimits) != 0 {
+				t.Errorf("pool create payload = %#v", request)
+			}
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(apiSandbox{ID: "pooled-sandbox", Status: apiSandboxStatus{State: "Pending"}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client, err := newClient(server.URL, server.Client(), Options{
+		Namespace:        "test",
+		ServiceName:      "lifecycle",
+		ServicePort:      "http",
+		APIKeySecretName: "api-key",
+		APIKeySecretKey:  "token",
+	}, nil)
+	if err != nil {
+		t.Fatalf("newClient() error = %v", err)
+	}
+	created, err := client.CreateSandbox(context.Background(), CreateSandboxRequest{PoolRef: "default-pool"})
+	if err != nil {
+		t.Fatalf("CreateSandbox() error = %v", err)
+	}
+	if created.ID != "pooled-sandbox" || created.State != "Pending" {
+		t.Errorf("CreateSandbox() = %#v", created)
+	}
+}
+
 func TestListSandboxesMergesLifecycleAndCustomResources(t *testing.T) {
 	createdAt := time.Date(2026, time.July, 19, 12, 0, 0, 0, time.UTC)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -159,9 +201,10 @@ func TestListSandboxesMergesLifecycleAndCustomResources(t *testing.T) {
 						Name:              "batch-direct",
 						Namespace:         "workloads",
 						Labels:            map[string]string{"team": "dashboard"},
+						Annotations:       map[string]string{"sandbox.opensandbox.io/alloc-status": `{"pods":["pool-pod-1"]}`},
 						CreationTimestamp: createdAt.Add(time.Minute),
 					},
-					Spec: resourceSpec{Template: podTemplate{Spec: podSpec{Containers: []containerSpec{{
+					Spec: resourceSpec{PoolRef: "default-pool", Template: podTemplate{Spec: podSpec{Containers: []containerSpec{{
 						Image: "batch:image",
 						Resources: containerResources{Requests: map[string]string{
 							"cpu": "2", "memory": "4Gi",
@@ -218,7 +261,7 @@ func TestListSandboxesMergesLifecycleAndCustomResources(t *testing.T) {
 	if got := byID["shared"]; got.State != "Running" || got.Image != "lifecycle:image" || strings.Join(got.Sources, ",") != "lifecycle,batchsandbox" {
 		t.Errorf("shared sandbox = %#v", got)
 	}
-	if got := byID["batch-direct"]; got.State != "Running" || got.Namespace != "workloads" || got.PodName != "batch-direct-0" || got.Image != "batch:image" || got.CPU != "2" || got.Memory != "4Gi" || got.Metadata["team"] != "dashboard" {
+	if got := byID["batch-direct"]; got.State != "Running" || got.Namespace != "workloads" || got.PodName != "pool-pod-1" || got.PoolRef != "default-pool" || got.Image != "batch:image" || got.CPU != "2" || got.Memory != "4Gi" || got.Metadata["team"] != "dashboard" {
 		t.Errorf("BatchSandbox = %#v", got)
 	}
 	if got := byID["agent-direct"]; got.State != "Running" || got.Namespace != "workloads" || got.PodName != "agent-direct-pod" || got.Image != "agent:image" || got.CPU != "4" || got.Memory != "8Gi" || strings.Join(got.Sources, ",") != "agentsandbox" {
@@ -266,6 +309,62 @@ func TestListSandboxesReturnsCRDResultsWithLifecycleError(t *testing.T) {
 	}
 	if len(sandboxes) != 1 || sandboxes[0].ID != "batch-direct" {
 		t.Fatalf("ListSandboxes() = %#v", sandboxes)
+	}
+}
+
+func TestListPools(t *testing.T) {
+	createdAt := time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC)
+	resource := poolResource{
+		Metadata: resourceMetadata{Name: "default-pool", Namespace: "workloads", CreationTimestamp: createdAt},
+		Spec: poolResourceSpec{
+			Template: podTemplate{Spec: podSpec{
+				RuntimeClassName: "kata-vm-isolation",
+				Containers: []containerSpec{{
+					Image:     "python:3.12-slim",
+					Resources: containerResources{Requests: map[string]string{"cpu": "1", "memory": "2Gi"}},
+				}},
+			}},
+			CapacitySpec: poolCapacitySpec{BufferMin: 1, BufferMax: 2, PoolMin: 1, PoolMax: 2},
+		},
+		Status: poolResourceStatus{Total: 1, Available: 1},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/apis/sandbox.opensandbox.io/v1alpha1/namespaces/workloads/pools":
+			_ = json.NewEncoder(w).Encode(poolResourceList{Items: []poolResource{resource}})
+		case "/apis/sandbox.opensandbox.io/v1alpha1/namespaces/workloads/pools/default-pool":
+			_ = json.NewEncoder(w).Encode(resource)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client, err := newClient(server.URL, server.Client(), Options{WorkloadNamespace: "workloads"}, nil)
+	if err != nil {
+		t.Fatalf("newClient() error = %v", err)
+	}
+	pools, err := client.ListPools(context.Background())
+	if err != nil {
+		t.Fatalf("ListPools() error = %v", err)
+	}
+	if len(pools) != 1 {
+		t.Fatalf("ListPools() = %#v, want one pool", pools)
+	}
+	pool := pools[0]
+	if pool.Name != "default-pool" || pool.Namespace != "workloads" || pool.Image != "python:3.12-slim" || pool.CPU != "1" || pool.Memory != "2Gi" || pool.RuntimeClass != "kata-vm-isolation" {
+		t.Errorf("pool identity/template = %#v", pool)
+	}
+	if pool.BufferMin != 1 || pool.BufferMax != 2 || pool.PoolMin != 1 || pool.PoolMax != 2 || pool.Total != 1 || pool.Available != 1 {
+		t.Errorf("pool capacity/status = %#v", pool)
+	}
+
+	got, err := client.GetPool(context.Background(), "default-pool")
+	if err != nil {
+		t.Fatalf("GetPool() error = %v", err)
+	}
+	if got != pool {
+		t.Errorf("GetPool() = %#v, want %#v", got, pool)
 	}
 }
 

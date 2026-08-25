@@ -39,6 +39,8 @@ const (
 
 const terminalShellProbeCommand = `command -v bash >/dev/null 2>&1`
 
+const execdTerminalUnavailableMessage = "OpenSandbox execd is not enabled for this sandbox, so the web terminal is unavailable."
+
 const sandboxStatsCommand = `set -eu
 read_cpu_usage_v2() {
   while read -r key value _; do
@@ -100,6 +102,8 @@ type application struct {
 	overviewTemplate         *template.Template
 	sandboxTemplate          *template.Template
 	snapshotsTemplate        *template.Template
+	poolsTemplate            *template.Template
+	poolDetailTemplate       *template.Template
 	snapshotDetailTemplate   *template.Template
 	snapshotResultTemplate   *template.Template
 	deploymentResultTemplate *template.Template
@@ -123,6 +127,10 @@ type application struct {
 	snapshotCache            []opensandbox.Snapshot
 	snapshotCacheErr         error
 	snapshotCacheUntil       time.Time
+	poolCacheMutex           sync.Mutex
+	poolCache                []opensandbox.Pool
+	poolCacheErr             error
+	poolCacheUntil           time.Time
 	basePath                 string
 }
 
@@ -139,6 +147,7 @@ type sandboxView struct {
 	ID                string
 	Name              string
 	State             string
+	StateLabel        string
 	CreatedAtISO      string
 	CreatedAtFallback string
 	Namespace         string
@@ -161,15 +170,54 @@ type sandboxGroup struct {
 type overviewData struct {
 	Total         int
 	SnapshotTotal int
+	PoolTotal     int
 	StateCounts   []sandboxStateCount
 	Groups        []sandboxGroup
 	Error         string
+}
+
+type poolView struct {
+	Name              string
+	Namespace         string
+	State             string
+	StateLabel        string
+	Image             string
+	Resources         string
+	RuntimeClass      string
+	Total             int32
+	Allocated         int32
+	Available         int32
+	PoolMin           int32
+	PoolMax           int32
+	BufferMin         int32
+	BufferMax         int32
+	CreatedAtISO      string
+	CreatedAtFallback string
+}
+
+type poolsData struct {
+	Total         int
+	SandboxTotal  int
+	SnapshotTotal int
+	Pools         []poolView
+	Error         string
+}
+
+type poolDetailData struct {
+	poolView
+	PoolTotal       int
+	SandboxTotal    int
+	SnapshotTotal   int
+	ActiveSandboxes []sandboxView
+	Error           string
 }
 
 type pageData struct {
 	SandboxImage string
 	SandboxID    string
 	SnapshotID   string
+	PoolName     string
+	ParentPool   string
 	Page         string
 	ContentURL   string
 	BasePath     string
@@ -184,12 +232,15 @@ type sandboxDetailData struct {
 	ID                string
 	Total             int
 	SnapshotTotal     int
+	PoolTotal         int
+	ParentPool        string
 	State             string
 	StateLabel        string
 	CreatedAtISO      string
 	CreatedAtFallback string
 	Namespace         string
 	PodName           string
+	PoolRef           string
 	Image             string
 	Resources         string
 	Sources           string
@@ -210,6 +261,7 @@ type clusterStatsNodeView struct {
 type clusterStatsData struct {
 	SandboxTotal     int
 	SnapshotTotal    int
+	PoolTotal        int
 	ScheduledTotal   int
 	NodeTotal        int
 	SandboxesPerNode string
@@ -285,6 +337,7 @@ type snapshotGroup struct {
 type snapshotsData struct {
 	Total        int
 	SandboxTotal int
+	PoolTotal    int
 	StateCounts  []snapshotStateCount
 	Groups       []snapshotGroup
 	Error        string
@@ -307,6 +360,7 @@ type snapshotDetailData struct {
 	snapshotView
 	Total        int
 	SandboxTotal int
+	PoolTotal    int
 	Error        string
 }
 
@@ -314,6 +368,7 @@ type sandboxDeploymentResultData struct {
 	SandboxID    string
 	SnapshotID   string
 	SnapshotName string
+	PoolRef      string
 	State        string
 	StateKey     string
 	Message      string
@@ -645,7 +700,7 @@ func newApplication(
 		return nil, fmt.Errorf("parse index template: %w", err)
 	}
 
-	overviewTemplate, err := template.ParseFS(webFiles, "web/overview.html")
+	overviewTemplate, err := template.ParseFS(webFiles, "web/overview.html", "web/sandbox-row.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse overview template: %w", err)
 	}
@@ -658,6 +713,16 @@ func newApplication(
 	snapshotsTemplate, err := template.ParseFS(webFiles, "web/snapshots.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse snapshots template: %w", err)
+	}
+
+	poolsTemplate, err := template.ParseFS(webFiles, "web/pools.html")
+	if err != nil {
+		return nil, fmt.Errorf("parse pools template: %w", err)
+	}
+
+	poolDetailTemplate, err := template.ParseFS(webFiles, "web/pool.html", "web/sandbox-row.html")
+	if err != nil {
+		return nil, fmt.Errorf("parse pool detail template: %w", err)
 	}
 
 	snapshotDetailTemplate, err := template.ParseFS(webFiles, "web/snapshot.html")
@@ -697,6 +762,8 @@ func newApplication(
 		overviewTemplate:         overviewTemplate,
 		sandboxTemplate:          sandboxTemplate,
 		snapshotsTemplate:        snapshotsTemplate,
+		poolsTemplate:            poolsTemplate,
+		poolDetailTemplate:       poolDetailTemplate,
 		snapshotDetailTemplate:   snapshotDetailTemplate,
 		snapshotResultTemplate:   snapshotResultTemplate,
 		deploymentResultTemplate: deploymentResultTemplate,
@@ -751,10 +818,14 @@ func (app *application) routes(routeRegistrars ...func(*http.ServeMux)) http.Han
 	mux.HandleFunc("GET /{$}", app.index)
 	mux.HandleFunc("GET /snapshots", app.snapshotsPage)
 	mux.HandleFunc("GET /snapshots/{id}", app.snapshotPage)
+	mux.HandleFunc("GET /pools", app.poolsPage)
+	mux.HandleFunc("GET /pools/{name}", app.poolPage)
 	mux.HandleFunc("GET /stats", app.clusterStatsPage)
 	mux.HandleFunc("GET /sandboxes/{id}", app.sandboxPage)
 	mux.HandleFunc("GET /dashboard/overview", app.overview)
 	mux.HandleFunc("GET /dashboard/stats", app.clusterStats)
+	mux.HandleFunc("GET /dashboard/pools", app.pools)
+	mux.HandleFunc("GET /dashboard/pools/{name}/fragment", app.poolDetail)
 	mux.HandleFunc("GET /dashboard/snapshots", app.snapshots)
 	mux.HandleFunc("GET /dashboard/snapshots/{id}/fragment", app.snapshotDetail)
 	mux.HandleFunc("GET /dashboard/snapshots/{id}/status", app.snapshotCreateStatus)
@@ -790,42 +861,59 @@ func (app *application) routes(routeRegistrars ...func(*http.ServeMux)) http.Han
 }
 
 func (app *application) index(w http.ResponseWriter, r *http.Request) {
-	app.renderPage(w, r, "list", "", "")
+	app.renderPage(w, r, "list", "", "", "")
 }
 
 func (app *application) snapshotsPage(w http.ResponseWriter, r *http.Request) {
-	app.renderPage(w, r, "snapshots", "", "")
+	app.renderPage(w, r, "snapshots", "", "", "")
+}
+
+func (app *application) poolsPage(w http.ResponseWriter, r *http.Request) {
+	app.renderPage(w, r, "pools", "", "", "")
+}
+
+func (app *application) poolPage(w http.ResponseWriter, r *http.Request) {
+	app.renderPage(w, r, "pool-detail", "", "", r.PathValue("name"))
 }
 
 func (app *application) clusterStatsPage(w http.ResponseWriter, r *http.Request) {
-	app.renderPage(w, r, "stats", "", "")
+	app.renderPage(w, r, "stats", "", "", "")
 }
 
 func (app *application) snapshotPage(w http.ResponseWriter, r *http.Request) {
-	app.renderPage(w, r, "snapshot-detail", "", r.PathValue("id"))
+	app.renderPage(w, r, "snapshot-detail", "", r.PathValue("id"), "")
 }
 
 func (app *application) sandboxPage(w http.ResponseWriter, r *http.Request) {
-	app.renderPage(w, r, "detail", r.PathValue("id"), "")
+	app.renderPage(w, r, "detail", r.PathValue("id"), "", "")
 }
 
-func (app *application) renderPage(w http.ResponseWriter, r *http.Request, page, sandboxID, snapshotID string) {
+func (app *application) renderPage(w http.ResponseWriter, r *http.Request, page, sandboxID, snapshotID, poolName string) {
 	data := pageData{
 		SandboxImage: app.sandboxImage,
 		SandboxID:    sandboxID,
 		SnapshotID:   snapshotID,
+		PoolName:     poolName,
+		ParentPool:   strings.TrimSpace(r.URL.Query().Get("pool")),
 		Page:         page,
 		ContentURL:   "/dashboard/overview",
 		BasePath:     app.basePath,
 	}
 	if page == "snapshots" {
 		data.ContentURL = "/dashboard/snapshots"
+	} else if page == "pools" {
+		data.ContentURL = "/dashboard/pools"
+	} else if page == "pool-detail" {
+		data.ContentURL = "/dashboard/pools/" + url.PathEscape(poolName) + "/fragment"
 	} else if page == "stats" {
 		data.ContentURL = "/dashboard/stats"
 	} else if snapshotID != "" {
 		data.ContentURL = "/dashboard/snapshots/" + url.PathEscape(snapshotID) + "/fragment"
 	} else if sandboxID != "" {
 		data.ContentURL = "/dashboard/sandboxes/" + url.PathEscape(sandboxID) + "/fragment"
+		if data.ParentPool != "" {
+			data.ContentURL += "?pool=" + url.QueryEscape(data.ParentPool)
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -842,14 +930,53 @@ func (app *application) snapshots(w http.ResponseWriter, r *http.Request) {
 	app.renderSnapshots(w, r, app.loadSnapshotsData(r.Context(), false))
 }
 
+func (app *application) pools(w http.ResponseWriter, r *http.Request) {
+	app.renderPools(w, r, app.loadPoolsData(r.Context(), false))
+}
+
+func (app *application) poolDetail(w http.ResponseWriter, r *http.Request) {
+	poolName := r.PathValue("name")
+	pool, getErr := app.sandboxReader.GetPool(r.Context(), poolName)
+	pools, _ := app.listPools(r.Context(), false)
+	sandboxes, _ := app.listSandboxes(r.Context(), false)
+	snapshots, _ := app.listSnapshots(r.Context(), false)
+	data := poolDetailData{
+		PoolTotal:     len(pools),
+		SandboxTotal:  len(sandboxes),
+		SnapshotTotal: len(snapshots),
+	}
+	if getErr != nil {
+		data.Name = poolName
+		data.Error = "Unable to load pool: " + getErr.Error()
+	} else {
+		data.poolView = poolToView(pool)
+	}
+	for _, sandbox := range sandboxes {
+		if sandbox.PoolRef != poolName || !sandboxIsActive(sandbox) {
+			continue
+		}
+		if getErr == nil {
+			sandbox = sandboxWithPoolDefaults(sandbox, pool)
+		}
+		data.ActiveSandboxes = append(data.ActiveSandboxes, sandboxToView(sandbox))
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := app.executeHTMLTemplate(w, app.poolDetailTemplate, "", data); err != nil {
+		slog.ErrorContext(r.Context(), "render pool detail", slog.String("pool_name", poolName), slog.Any("error", err))
+	}
+}
+
 func (app *application) clusterStats(w http.ResponseWriter, r *http.Request) {
 	sandboxes, sandboxErr := app.listSandboxes(r.Context(), false)
 	snapshots, _ := app.listSnapshots(r.Context(), false)
+	pools, _ := app.listPools(r.Context(), false)
 	loads, loadErr := app.sandboxReader.ListSandboxNodeLoads(r.Context())
 	recentEvents, eventErr := app.sandboxReader.ListRecentSandboxEvents(r.Context(), sandboxes)
 	data := clusterStatsData{
 		SandboxTotal:  len(sandboxes),
 		SnapshotTotal: len(snapshots),
+		PoolTotal:     len(pools),
 		NodeTotal:     len(loads),
 	}
 	for _, load := range loads {
@@ -912,7 +1039,8 @@ func (app *application) snapshotDetail(w http.ResponseWriter, r *http.Request) {
 	snapshot, getErr := app.sandboxReader.GetSnapshot(r.Context(), snapshotID)
 	snapshots, _ := app.listSnapshots(r.Context(), false)
 	sandboxes, _ := app.listSandboxes(r.Context(), false)
-	data := snapshotDetailData{Total: len(snapshots), SandboxTotal: len(sandboxes)}
+	pools, _ := app.listPools(r.Context(), false)
+	data := snapshotDetailData{Total: len(snapshots), SandboxTotal: len(sandboxes), PoolTotal: len(pools)}
 	if getErr != nil {
 		data.ID = snapshotID
 		data.Name = snapshotID
@@ -1067,7 +1195,9 @@ func (app *application) deleteSnapshot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) sandboxDetail(w http.ResponseWriter, r *http.Request) {
-	app.renderSandboxDetail(w, r, app.loadSandboxDetailData(r.Context(), r.PathValue("id"), false))
+	data := app.loadSandboxDetailData(r.Context(), r.PathValue("id"), false)
+	data.ParentPool = strings.TrimSpace(r.URL.Query().Get("pool"))
+	app.renderSandboxDetail(w, r, data)
 }
 
 func (app *application) loadSandboxDetailData(ctx context.Context, sandboxID string, fresh bool) sandboxDetailData {
@@ -1075,6 +1205,7 @@ func (app *application) loadSandboxDetailData(ctx context.Context, sandboxID str
 	data := sandboxDetailData{ID: sandboxID, Total: len(sandboxes)}
 	for _, sandbox := range sandboxes {
 		if sandbox.ID == sandboxID {
+			sandbox = app.sandboxWithPoolDefaults(ctx, sandbox)
 			data = sandboxDetailFromSandbox(sandbox)
 			data.Total = len(sandboxes)
 			break
@@ -1089,8 +1220,13 @@ func (app *application) loadSandboxDetailData(ctx context.Context, sandboxID str
 }
 
 func (app *application) renderSandboxDetail(w http.ResponseWriter, r *http.Request, data sandboxDetailData) {
+	if data.ParentPool == "" {
+		data.ParentPool = strings.TrimSpace(r.URL.Query().Get("pool"))
+	}
 	snapshots, _ := app.listSnapshots(r.Context(), false)
+	pools, _ := app.listPools(r.Context(), false)
 	data.SnapshotTotal = len(snapshots)
+	data.PoolTotal = len(pools)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := app.executeHTMLTemplate(w, app.sandboxTemplate, "", data); err != nil {
 		slog.ErrorContext(r.Context(), "render sandbox detail", slog.String("sandbox_id", data.ID), slog.Any("error", err))
@@ -1451,6 +1587,11 @@ func (app *application) sandboxPTY(w http.ResponseWriter, r *http.Request) {
 	probeContext, cancelProbe := context.WithTimeout(r.Context(), 4*time.Second)
 	probe, probeErr := app.sandboxCommands.RunCommand(probeContext, sandboxID, terminalShellProbeCommand)
 	cancelProbe()
+	if opensandbox.IsHTTPStatus(probeErr, http.StatusBadGateway) {
+		slog.WarnContext(r.Context(), "sandbox execd unavailable", slog.String("sandbox_id", sandboxID), slog.Any("error", probeErr))
+		app.sendTerminalError(r.Context(), downstream, execdTerminalUnavailableMessage)
+		return
+	}
 	if probeErr == nil && probe.ExitCode != 0 {
 		message := "Interactive terminal requires Bash, but Bash is not installed in this sandbox."
 		slog.WarnContext(r.Context(), "terminal shell unavailable", slog.String("sandbox_id", sandboxID))
@@ -1461,7 +1602,11 @@ func (app *application) sandboxPTY(w http.ResponseWriter, r *http.Request) {
 	upstream, err := app.sandboxTerminal.OpenPTY(r.Context(), sandboxID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "open sandbox PTY", slog.String("sandbox_id", sandboxID), slog.Any("error", err))
-		app.sendTerminalError(r.Context(), downstream, "Unable to open terminal: "+err.Error())
+		message := "Unable to open terminal: " + err.Error()
+		if opensandbox.IsHTTPStatus(err, http.StatusBadGateway) {
+			message = execdTerminalUnavailableMessage
+		}
+		app.sendTerminalError(r.Context(), downstream, message)
 		return
 	}
 	defer upstream.Close(websocket.StatusNormalClosure, "")
@@ -1517,6 +1662,7 @@ func sandboxDetailFromSandbox(sandbox opensandbox.Sandbox) sandboxDetailData {
 		CreatedAtFallback: sandbox.CreatedAt.Local().Format("2006-01-02 15:04:05 MST"),
 		Namespace:         displayValue(sandbox.Namespace),
 		PodName:           displayValue(sandbox.PodName),
+		PoolRef:           sandbox.PoolRef,
 		Image:             displayValue(sandbox.Image),
 		Resources:         formatSandboxResources(sandbox.CPU, sandbox.Memory),
 		Sources:           formatSandboxSources(sandbox.Sources),
@@ -1529,11 +1675,12 @@ func (app *application) sandboxDeploymentStatus(w http.ResponseWriter, r *http.R
 	sandboxID := r.PathValue("id")
 	snapshotID := strings.TrimSpace(r.URL.Query().Get("snapshotId"))
 	snapshotName := strings.TrimSpace(r.URL.Query().Get("snapshotName"))
+	poolRef := strings.TrimSpace(r.URL.Query().Get("poolRef"))
 	sandboxes, err := app.listSandboxes(r.Context(), true)
 	var data sandboxDeploymentResultData
 	for _, sandbox := range sandboxes {
 		if sandbox.ID == sandboxID {
-			data = sandboxDeploymentResultFromSandbox(sandbox, snapshotID, snapshotName, len(sandboxes))
+			data = sandboxDeploymentResultFromSandbox(sandbox, snapshotID, snapshotName, poolRef, len(sandboxes))
 			break
 		}
 	}
@@ -1546,6 +1693,7 @@ func (app *application) sandboxDeploymentStatus(w http.ResponseWriter, r *http.R
 			SandboxID:    sandboxID,
 			SnapshotID:   snapshotID,
 			SnapshotName: displayValue(snapshotName),
+			PoolRef:      poolRef,
 			State:        "Checking",
 			StateKey:     "checking",
 			Message:      message,
@@ -1560,11 +1708,14 @@ func (app *application) sandboxDeploymentStatus(w http.ResponseWriter, r *http.R
 	}
 }
 
-func sandboxDeploymentResultFromSandbox(sandbox opensandbox.Sandbox, snapshotID, snapshotName string, total int) sandboxDeploymentResultData {
+func sandboxDeploymentResultFromSandbox(sandbox opensandbox.Sandbox, snapshotID, snapshotName, poolRef string, total int) sandboxDeploymentResultData {
 	stateKey := normalizeSandboxState(sandbox.State)
 	ready := stateKey == "running"
 	failed := stateKey == "failed" || stateKey == "canceled"
 	message := "OpenSandbox is provisioning a sandbox from the snapshot."
+	if poolRef != "" {
+		message = "OpenSandbox is acquiring a sandbox from the pool."
+	}
 	if ready {
 		message = "The sandbox is running and ready to use."
 	} else if failed {
@@ -1574,6 +1725,7 @@ func sandboxDeploymentResultFromSandbox(sandbox opensandbox.Sandbox, snapshotID,
 		SandboxID:    sandbox.ID,
 		SnapshotID:   snapshotID,
 		SnapshotName: displayValue(snapshotName),
+		PoolRef:      poolRef,
 		State:        sandboxStateLabel(stateKey),
 		StateKey:     stateKey,
 		Message:      message,
@@ -1606,6 +1758,8 @@ func (app *application) createSandbox(w http.ResponseWriter, r *http.Request) {
 	}
 	request.Metadata["osb-dashboard/request-id"] = requestID
 	deployingSnapshot := request.SnapshotID != ""
+	deployingPool := request.PoolRef != ""
+	trackingDeployment := deployingSnapshot || deployingPool
 	snapshotName := strings.TrimSpace(r.FormValue("snapshotName"))
 	if snapshotName == "" {
 		snapshotName = request.SnapshotID
@@ -1635,10 +1789,10 @@ func (app *application) createSandbox(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Unable to create sandbox: "+createResult.err.Error(), http.StatusBadGateway)
 				return
 			}
-			if deployingSnapshot {
+			if trackingDeployment {
 				app.invalidateSandboxCache()
 				sandboxes, _ := app.listSandboxes(r.Context(), true)
-				data := sandboxDeploymentResultFromSandbox(createResult.sandbox, request.SnapshotID, snapshotName, len(sandboxes))
+				data := sandboxDeploymentResultFromSandbox(createResult.sandbox, request.SnapshotID, snapshotName, request.PoolRef, len(sandboxes))
 				app.renderSandboxDeploymentResult(w, r, data)
 				return
 			}
@@ -1647,12 +1801,12 @@ func (app *application) createSandbox(w http.ResponseWriter, r *http.Request) {
 		case <-poll.C:
 			sandboxes, listErr := app.listSandboxes(r.Context(), true)
 			if sandbox := acceptedSandbox(sandboxes, requestID); sandbox != nil {
-				if deployingSnapshot {
-					data := sandboxDeploymentResultFromSandbox(*sandbox, request.SnapshotID, snapshotName, len(sandboxes))
+				if trackingDeployment {
+					data := sandboxDeploymentResultFromSandbox(*sandbox, request.SnapshotID, snapshotName, request.PoolRef, len(sandboxes))
 					app.renderSandboxDeploymentResult(w, r, data)
 					return
 				}
-				app.renderSandboxList(w, sandboxes, listErr)
+				app.renderSandboxList(w, r.Context(), sandboxes, listErr)
 				return
 			}
 		case <-r.Context().Done():
@@ -1669,7 +1823,15 @@ func (app *application) createSandboxRequest(r *http.Request) (opensandbox.Creat
 	}
 
 	snapshotID := strings.TrimSpace(r.FormValue("snapshotId"))
+	poolRef := strings.TrimSpace(r.FormValue("poolRef"))
 	image := strings.TrimSpace(r.FormValue("image"))
+	metadata := map[string]string{"createdBy": "osb-dashboard"}
+	if poolRef != "" {
+		if snapshotID != "" || image != "" {
+			return opensandbox.CreateSandboxRequest{}, errors.New("select exactly one of an image, snapshot, or pool")
+		}
+		return opensandbox.CreateSandboxRequest{PoolRef: poolRef, Metadata: metadata}, nil
+	}
 	if snapshotID == "" && image == "" {
 		image = app.sandboxImage
 	}
@@ -1687,8 +1849,6 @@ func (app *application) createSandboxRequest(r *http.Request) (opensandbox.Creat
 	if !ok {
 		return opensandbox.CreateSandboxRequest{}, errors.New("select a valid resource preset")
 	}
-
-	metadata := map[string]string{"createdBy": "osb-dashboard"}
 
 	request := opensandbox.CreateSandboxRequest{
 		Image:          image,
@@ -1737,11 +1897,16 @@ func (app *application) renderAcceptedSandbox(
 	if acceptedSandbox(sandboxes, requestID) == nil && created != nil {
 		sandboxes = append(sandboxes, *created)
 	}
-	app.renderSandboxList(w, sandboxes, listErr)
+	app.renderSandboxList(w, ctx, sandboxes, listErr)
 }
 
-func (app *application) renderSandboxList(w http.ResponseWriter, sandboxes []opensandbox.Sandbox, listErr error) {
+func (app *application) renderSandboxList(w http.ResponseWriter, ctx context.Context, sandboxes []opensandbox.Sandbox, listErr error) {
+	sandboxes = app.sandboxesWithPoolDefaults(ctx, sandboxes)
 	data := app.overviewDataFromSandboxes(sandboxes, "")
+	snapshots, _ := app.listSnapshots(ctx, false)
+	pools, _ := app.listPools(ctx, false)
+	data.SnapshotTotal = len(snapshots)
+	data.PoolTotal = len(pools)
 	if listErr != nil {
 		data.Error = "Some sandbox sources could not be loaded: " + listErr.Error()
 	}
@@ -1761,6 +1926,10 @@ func (app *application) deleteSandbox(w http.ResponseWriter, r *http.Request) {
 	}
 	if target == nil {
 		data := app.overviewDataFromSandboxes(sandboxes, "")
+		snapshots, _ := app.listSnapshots(r.Context(), false)
+		pools, _ := app.listPools(r.Context(), false)
+		data.SnapshotTotal = len(snapshots)
+		data.PoolTotal = len(pools)
 		if listErr != nil {
 			data.Error = "Unable to locate sandbox for deletion: " + listErr.Error()
 		} else {
@@ -1778,6 +1947,10 @@ func (app *application) deleteSandbox(w http.ResponseWriter, r *http.Request) {
 			slog.Any("error", err),
 		)
 		data := app.overviewDataFromSandboxes(sandboxes, "")
+		snapshots, _ := app.listSnapshots(r.Context(), false)
+		pools, _ := app.listPools(r.Context(), false)
+		data.SnapshotTotal = len(snapshots)
+		data.PoolTotal = len(pools)
 		data.Error = "Unable to delete sandbox: " + err.Error()
 		app.renderOverview(w, data)
 		return
@@ -1836,6 +2009,87 @@ func (app *application) invalidateSnapshotCache() {
 	app.snapshotCacheMutex.Unlock()
 }
 
+func (app *application) listPools(ctx context.Context, fresh bool) ([]opensandbox.Pool, error) {
+	app.poolCacheMutex.Lock()
+	defer app.poolCacheMutex.Unlock()
+	if !fresh && time.Now().Before(app.poolCacheUntil) {
+		return append([]opensandbox.Pool(nil), app.poolCache...), app.poolCacheErr
+	}
+	pools, err := app.sandboxReader.ListPools(ctx)
+	app.poolCache = append(app.poolCache[:0], pools...)
+	app.poolCacheErr = err
+	cacheDuration := 4 * time.Second
+	if err != nil {
+		cacheDuration = time.Second
+	}
+	app.poolCacheUntil = time.Now().Add(cacheDuration)
+	return append([]opensandbox.Pool(nil), pools...), err
+}
+
+func (app *application) loadPoolsData(ctx context.Context, fresh bool) poolsData {
+	pools, err := app.listPools(ctx, fresh)
+	sandboxes, _ := app.listSandboxes(ctx, false)
+	snapshots, _ := app.listSnapshots(ctx, false)
+	data := poolsData{
+		Total:         len(pools),
+		SandboxTotal:  len(sandboxes),
+		SnapshotTotal: len(snapshots),
+		Pools:         make([]poolView, 0, len(pools)),
+	}
+	for _, pool := range pools {
+		data.Pools = append(data.Pools, poolToView(pool))
+	}
+	if err != nil {
+		slog.ErrorContext(ctx, "list pools", slog.Any("error", err))
+		data.Error = "Pools could not be loaded: " + err.Error()
+	}
+	return data
+}
+
+func poolToView(pool opensandbox.Pool) poolView {
+	state := "ready"
+	stateLabel := "Ready"
+	needsCapacity := pool.Total < pool.PoolMin || pool.Available < pool.BufferMin
+	if needsCapacity {
+		switch {
+		case pool.Available == 0 && pool.Allocated >= pool.Total && pool.Total >= pool.PoolMax:
+			state = "at-capacity"
+			stateLabel = "At capacity"
+		case pool.Total < pool.PoolMax:
+			state = "pending"
+			stateLabel = "Scaling"
+		default:
+			state = "degraded"
+			stateLabel = "Degraded"
+		}
+	}
+	return poolView{
+		Name:              pool.Name,
+		Namespace:         displayValue(pool.Namespace),
+		State:             state,
+		StateLabel:        stateLabel,
+		Image:             displayValue(pool.Image),
+		Resources:         formatSandboxResources(pool.CPU, pool.Memory),
+		RuntimeClass:      displayValue(pool.RuntimeClass),
+		Total:             pool.Total,
+		Allocated:         pool.Allocated,
+		Available:         pool.Available,
+		PoolMin:           pool.PoolMin,
+		PoolMax:           pool.PoolMax,
+		BufferMin:         pool.BufferMin,
+		BufferMax:         pool.BufferMax,
+		CreatedAtISO:      pool.CreatedAt.Format(time.RFC3339),
+		CreatedAtFallback: pool.CreatedAt.Local().Format("2006-01-02 15:04:05 MST"),
+	}
+}
+
+func (app *application) renderPools(w http.ResponseWriter, r *http.Request, data poolsData) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := app.executeHTMLTemplate(w, app.poolsTemplate, "", data); err != nil {
+		slog.ErrorContext(r.Context(), "render pools", slog.Any("error", err))
+	}
+}
+
 func (app *application) loadSnapshotsData(ctx context.Context, fresh bool) snapshotsData {
 	snapshots, err := app.listSnapshots(ctx, fresh)
 	data := app.snapshotsDataFromSnapshots(ctx, snapshots)
@@ -1848,6 +2102,7 @@ func (app *application) loadSnapshotsData(ctx context.Context, fresh bool) snaps
 
 func (app *application) snapshotsDataFromSnapshots(ctx context.Context, snapshots []opensandbox.Snapshot) snapshotsData {
 	sandboxes, _ := app.listSandboxes(ctx, false)
+	pools, _ := app.listPools(ctx, false)
 	availableSandboxes := make(map[string]bool, len(sandboxes))
 	for _, sandbox := range sandboxes {
 		availableSandboxes[sandbox.ID] = true
@@ -1856,7 +2111,9 @@ func (app *application) snapshotsDataFromSnapshots(ctx context.Context, snapshot
 	for _, snapshot := range snapshots {
 		views = append(views, snapshotToView(snapshot, availableSandboxes[snapshot.SandboxID]))
 	}
-	return newSnapshotsData(views, len(sandboxes))
+	data := newSnapshotsData(views, len(sandboxes))
+	data.PoolTotal = len(pools)
+	return data
 }
 
 func snapshotToView(snapshot opensandbox.Snapshot, sourceSandboxAvailable bool) snapshotView {
@@ -1902,9 +2159,12 @@ func (app *application) loadOverviewData(ctx context.Context) overviewData {
 
 func (app *application) loadOverviewDataExcluding(ctx context.Context, excludedID string) overviewData {
 	sandboxes, err := app.listSandboxes(ctx, false)
+	sandboxes = app.sandboxesWithPoolDefaults(ctx, sandboxes)
 	snapshots, _ := app.listSnapshots(ctx, false)
+	pools, _ := app.listPools(ctx, false)
 	data := app.overviewDataFromSandboxes(sandboxes, excludedID)
 	data.SnapshotTotal = len(snapshots)
+	data.PoolTotal = len(pools)
 	if err != nil {
 		slog.ErrorContext(ctx, "list sandboxes", slog.Any("error", err))
 		data.Error = "Some sandbox sources could not be loaded: " + err.Error()
@@ -1938,13 +2198,55 @@ func sandboxToView(sandbox opensandbox.Sandbox) sandboxView {
 	return sandboxView{
 		ID:                sandbox.ID,
 		Name:              name,
-		State:             sandbox.State,
+		State:             normalizeSandboxState(sandbox.State),
+		StateLabel:        sandboxStateLabel(normalizeSandboxState(sandbox.State)),
 		CreatedAtISO:      sandbox.CreatedAt.Format(time.RFC3339),
 		CreatedAtFallback: sandbox.CreatedAt.Local().Format("2006-01-02 15:04:05 MST"),
 		Namespace:         displayValue(sandbox.Namespace),
 		PodName:           displayValue(sandbox.PodName),
 		Image:             displayValue(sandbox.Image),
 		Resources:         formatSandboxResources(sandbox.CPU, sandbox.Memory),
+	}
+}
+
+func (app *application) sandboxWithPoolDefaults(ctx context.Context, sandbox opensandbox.Sandbox) opensandbox.Sandbox {
+	return app.sandboxesWithPoolDefaults(ctx, []opensandbox.Sandbox{sandbox})[0]
+}
+
+func (app *application) sandboxesWithPoolDefaults(ctx context.Context, sandboxes []opensandbox.Sandbox) []opensandbox.Sandbox {
+	pools, _ := app.listPools(ctx, false)
+	poolsByName := make(map[string]opensandbox.Pool, len(pools))
+	for _, pool := range pools {
+		poolsByName[pool.Name] = pool
+	}
+	result := append([]opensandbox.Sandbox(nil), sandboxes...)
+	for index, sandbox := range result {
+		if pool, ok := poolsByName[sandbox.PoolRef]; ok {
+			result[index] = sandboxWithPoolDefaults(sandbox, pool)
+		}
+	}
+	return result
+}
+
+func sandboxWithPoolDefaults(sandbox opensandbox.Sandbox, pool opensandbox.Pool) opensandbox.Sandbox {
+	if sandbox.Image == "" || strings.EqualFold(sandbox.Image, "unknown") {
+		sandbox.Image = pool.Image
+	}
+	if sandbox.CPU == "" {
+		sandbox.CPU = pool.CPU
+	}
+	if sandbox.Memory == "" {
+		sandbox.Memory = pool.Memory
+	}
+	return sandbox
+}
+
+func sandboxIsActive(sandbox opensandbox.Sandbox) bool {
+	switch normalizeSandboxState(sandbox.State) {
+	case "failed", "canceled", "terminated":
+		return false
+	default:
+		return true
 	}
 }
 

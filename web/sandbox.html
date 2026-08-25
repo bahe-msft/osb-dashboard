@@ -2,15 +2,24 @@
 <section
   id="dashboard-content"
   data-page="detail"
-  hx-get="/dashboard/sandboxes/{{urlquery .ID}}/fragment"
+  data-parent-pool="{{.ParentPool}}"
+  hx-get="/dashboard/sandboxes/{{urlquery .ID}}/fragment{{if .ParentPool}}?pool={{urlquery .ParentPool}}{{end}}"
   hx-trigger="dashboardRefresh"
   hx-swap="outerHTML"
   aria-live="polite"
 >
   <div id="navigation-title" class="topbar-breadcrumb" hx-swap-oob="true">
-    <a href="/" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/">Sandboxes</a>
+    {{if .ParentPool}}
+      <a href="/pools" hx-get="/dashboard/pools" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/pools">Pools</a>
+      <span class="topbar-breadcrumb-sep">/</span>
+      <a href="/pools/{{urlquery .ParentPool}}" hx-get="/dashboard/pools/{{urlquery .ParentPool}}/fragment" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/pools/{{urlquery .ParentPool}}">{{.ParentPool}}</a>
+      <span class="topbar-breadcrumb-sep">/</span>
+      <span class="topbar-breadcrumb-label">Sandboxes</span>
+    {{else}}
+      <a href="/" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/">Sandboxes</a>
+    {{end}}
     <span class="topbar-breadcrumb-sep">/</span>
-    <span class="topbar-breadcrumb-current copyable-value" title="{{.ID}}">{{.ID}}</span>
+    <span class="topbar-breadcrumb-current{{if not .ParentPool}} copyable-value{{end}}" title="{{.ID}}">{{.ID}}</span>
   </div>
   <span id="page-toolbar-action" class="toolbar-action" hx-swap-oob="true">
     <button id="details-pane-toggle" class="icon-button" type="button" aria-controls="sandbox-detail-sidebar" aria-pressed="false" aria-label="Hide details pane" title="Hide details pane">
@@ -19,6 +28,7 @@
   </span>
   <span id="sandbox-nav-count" class="nav-item-count" hx-swap-oob="true">{{.Total}}</span>
   <span id="snapshot-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SnapshotTotal}}</span>
+  <span id="pool-nav-count" class="nav-item-count" hx-swap-oob="true">{{.PoolTotal}}</span>
 
   {{if .Error}}
     <div class="dashboard-error" role="alert">
@@ -50,7 +60,7 @@
               class="sandbox-detail-action"
               type="button"
               data-sandbox-lifecycle-action="pause"
-              hx-post="/dashboard/sandboxes/{{urlquery .ID}}/pause"
+              hx-post="/dashboard/sandboxes/{{urlquery .ID}}/pause{{if .ParentPool}}?pool={{urlquery .ParentPool}}{{end}}"
               hx-target="#dashboard-content"
               hx-swap="outerHTML"
               hx-indicator="this"
@@ -66,7 +76,7 @@
               class="sandbox-detail-action"
               type="button"
               data-sandbox-lifecycle-action="resume"
-              hx-post="/dashboard/sandboxes/{{urlquery .ID}}/resume"
+              hx-post="/dashboard/sandboxes/{{urlquery .ID}}/resume{{if .ParentPool}}?pool={{urlquery .ParentPool}}{{end}}"
               hx-target="#dashboard-content"
               hx-swap="outerHTML"
               hx-indicator="this"
@@ -209,6 +219,16 @@
                 <strong class="sandbox-detail-property-value copyable-value">{{.PodName}}</strong>
               </div>
             </div>
+            {{if .PoolRef}}
+              <div class="sandbox-info-property sandbox-detail-property">
+                <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="package-open"></i></span>
+                <div class="sandbox-info-property-body">
+                  <span class="sandbox-detail-property-label">Pool</span>
+                  <!-- Use native navigation so a concurrent dashboardRefresh swap cannot discard this parent-resource transition. -->
+                  <a class="snapshot-detail-link" href="/pools/{{urlquery .PoolRef}}">{{.PoolRef}}</a>
+                </div>
+              </div>
+            {{end}}
             <div class="sandbox-info-property sandbox-detail-property">
               <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="waypoints"></i></span>
               <div class="sandbox-info-property-body">

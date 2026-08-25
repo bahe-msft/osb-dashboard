@@ -13,6 +13,7 @@
 <span id="page-toolbar-action" class="toolbar-action" hx-swap-oob="true"></span>
 <span id="sandbox-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SandboxTotal}}</span>
 <span id="snapshot-nav-count" class="nav-item-count" hx-swap-oob="true">{{.Total}}</span>
+<span id="pool-nav-count" class="nav-item-count" hx-swap-oob="true">{{.PoolTotal}}</span>
 
 <div class="filter-tabs" aria-label="Filter snapshots by state">
   <button class="filter-pill" type="button" data-snapshot-state-filter="all" data-active="true" aria-pressed="true">
@@ -67,11 +68,11 @@
               <span>Source</span>
               {{if .SourceSandboxAvailable}}
                 <a
-                  href="/dashboard/sandboxes/{{urlquery .SandboxID}}"
+                  href="/sandboxes/{{urlquery .SandboxID}}"
                   hx-get="/dashboard/sandboxes/{{urlquery .SandboxID}}/fragment"
                   hx-target="#dashboard-content"
                   hx-swap="outerHTML"
-                  hx-push-url="/dashboard/sandboxes/{{urlquery .SandboxID}}"
+                  hx-push-url="/sandboxes/{{urlquery .SandboxID}}"
                   title="Open source sandbox"
                 >{{.SandboxID}}</a>
               {{else}}

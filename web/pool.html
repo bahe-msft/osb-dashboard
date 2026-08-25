@@ -1,0 +1,163 @@
+<title>{{.Name}} · OpenSandbox Dashboard</title>
+<section
+  id="dashboard-content"
+  data-page="pool-detail"
+  hx-get="/dashboard/pools/{{urlquery .Name}}/fragment"
+  hx-trigger="dashboardRefresh"
+  hx-swap="outerHTML"
+  aria-live="polite"
+>
+  <div id="navigation-title" class="topbar-breadcrumb" hx-swap-oob="true">
+    <a href="/pools" hx-get="/dashboard/pools" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/pools">Pools</a>
+    <span class="topbar-breadcrumb-sep">/</span>
+    <span class="topbar-breadcrumb-current copyable-value" title="{{.Name}}">{{.Name}}</span>
+  </div>
+  <span id="page-toolbar-action" class="toolbar-action" hx-swap-oob="true"></span>
+  <span id="sandbox-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SandboxTotal}}</span>
+  <span id="pool-nav-count" class="nav-item-count" hx-swap-oob="true">{{.PoolTotal}}</span>
+  <span id="snapshot-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SnapshotTotal}}</span>
+
+  {{if .Error}}
+    <div class="dashboard-error" role="alert">
+      <i data-lucide="circle-alert" aria-hidden="true"></i>
+      <span>{{.Error}}</span>
+    </div>
+  {{end}}
+
+  {{if .State}}
+    <header class="snapshot-detail-header">
+      <div class="snapshot-detail-summary">
+        <span class="status-ring" data-status="{{.State}}" aria-hidden="true"></span>
+        <div>
+          <h1>{{.Name}}</h1>
+          <p>{{.Namespace}}</p>
+        </div>
+      </div>
+      <div class="snapshot-detail-actions">
+        <button
+          class="sandbox-detail-action"
+          type="button"
+          data-deploy-pool
+          data-pool-ref="{{.Name}}"
+          {{if eq .Available 0}}disabled title="No sandbox is currently available in this pool"{{end}}
+          aria-label="Acquire sandbox from pool {{.Name}}"
+        >
+          <i data-lucide="monitor-up" aria-hidden="true"></i>
+          Acquire
+        </button>
+      </div>
+    </header>
+
+    <div class="snapshot-detail-body pool-detail-body">
+      <section class="snapshot-detail-panel" aria-label="Pool details">
+        <div class="sandbox-info-properties snapshot-detail-properties pool-detail-properties">
+          <div class="sandbox-info-property">
+            <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="circle-dot"></i></span>
+            <div class="sandbox-info-property-body">
+              <span class="sandbox-detail-property-label">Status</span>
+              <strong class="sandbox-detail-property-value">{{.StateLabel}}</strong>
+            </div>
+          </div>
+          <div class="sandbox-info-property">
+            <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="package-check"></i></span>
+            <div class="sandbox-info-property-body">
+              <span class="sandbox-detail-property-label">Available sandbox</span>
+              <strong class="sandbox-detail-property-value">{{.Available}}</strong>
+            </div>
+          </div>
+          <div class="sandbox-info-property">
+            <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="package-open"></i></span>
+            <div class="sandbox-info-property-body">
+              <span class="sandbox-detail-property-label">Allocated sandbox</span>
+              <strong class="sandbox-detail-property-value">{{.Allocated}}</strong>
+            </div>
+          </div>
+          <div class="sandbox-info-property">
+            <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="boxes"></i></span>
+            <div class="sandbox-info-property-body">
+              <span class="sandbox-detail-property-label">Total sandbox</span>
+              <strong class="sandbox-detail-property-value">{{.Total}}</strong>
+            </div>
+          </div>
+          <div class="sandbox-info-property">
+            <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="between-horizontal-start"></i></span>
+            <div class="sandbox-info-property-body">
+              <span class="sandbox-detail-property-label">Pool range</span>
+              <strong class="sandbox-detail-property-value">min: {{.PoolMin}} max: {{.PoolMax}}</strong>
+            </div>
+          </div>
+          <div class="sandbox-info-property">
+            <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="flame-kindling"></i></span>
+            <div class="sandbox-info-property-body">
+              <span class="sandbox-detail-property-label">Warm buffer</span>
+              <strong class="sandbox-detail-property-value">min: {{.BufferMin}} max: {{.BufferMax}}</strong>
+            </div>
+          </div>
+          <div class="sandbox-info-property">
+            <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="disc"></i></span>
+            <div class="sandbox-info-property-body">
+              <span class="sandbox-detail-property-label">Container image</span>
+              <strong class="sandbox-detail-property-value copyable-value" title="{{.Image}}">{{.Image}}</strong>
+            </div>
+          </div>
+          <div class="sandbox-info-property">
+            <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="cpu"></i></span>
+            <div class="sandbox-info-property-body">
+              <span class="sandbox-detail-property-label">Resources</span>
+              <strong class="sandbox-detail-property-value">{{.Resources}}</strong>
+            </div>
+          </div>
+          <div class="sandbox-info-property">
+            <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="shield-check"></i></span>
+            <div class="sandbox-info-property-body">
+              <span class="sandbox-detail-property-label">Runtime class</span>
+              <strong class="sandbox-detail-property-value copyable-value">{{.RuntimeClass}}</strong>
+            </div>
+          </div>
+          <div class="sandbox-info-property">
+            <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="calendar-clock"></i></span>
+            <div class="sandbox-info-property-body">
+              <span class="sandbox-detail-property-label">Created</span>
+              <strong class="sandbox-detail-property-value"><time datetime="{{.CreatedAtISO}}" data-created-time data-no-prefix>{{.CreatedAtFallback}}</time></strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="pool-active-section" aria-labelledby="pool-active-sandboxes-title">
+        <div class="pool-active-header">
+          <h2 id="pool-active-sandboxes-title">Active sandboxes</h2>
+          <span class="count">{{len .ActiveSandboxes}}</span>
+        </div>
+        <div class="snapshot-detail-panel pool-active-panel">
+        {{if .ActiveSandboxes}}
+          <div class="sandbox-list pool-sandbox-list">
+            {{range .ActiveSandboxes}}
+              <a
+                class="sandbox-row pool-sandbox-row"
+                href="/sandboxes/{{urlquery .ID}}?pool={{urlquery $.Name}}"
+                hx-get="/dashboard/sandboxes/{{urlquery .ID}}/fragment?pool={{urlquery $.Name}}"
+                hx-target="#dashboard-content"
+                hx-swap="outerHTML"
+                hx-push-url="/sandboxes/{{urlquery .ID}}?pool={{urlquery $.Name}}"
+                aria-label="Open sandbox {{.Name}}"
+              >
+                {{template "sandbox-row-core" .}}
+                <span class="sandbox-row-actions pool-sandbox-meta">
+                  <time datetime="{{.CreatedAtISO}}" data-created-time>created {{.CreatedAtFallback}}</time>
+                </span>
+              </a>
+            {{end}}
+          </div>
+        {{else}}
+          <div class="pool-active-empty">
+            <span class="empty-state-icon" aria-hidden="true"><i data-lucide="monitor-off"></i></span>
+            <strong>No active sandboxes</strong>
+            <p>Acquire a sandbox to allocate capacity from this pool.</p>
+          </div>
+        {{end}}
+        </div>
+      </section>
+    </div>
+  {{end}}
+</section>

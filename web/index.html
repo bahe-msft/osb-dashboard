@@ -6,7 +6,7 @@
     <meta name="description" content="A lightweight dashboard for OpenSandbox">
     <meta name="htmx-config" content='{"allowEval":false}'>
     <script src="/assets/boot.js"></script>
-    <title>{{if .SandboxID}}{{.SandboxID}} · {{else if .SnapshotID}}{{.SnapshotID}} · {{else if eq .Page "snapshots"}}Snapshots · {{else if eq .Page "stats"}}Stats · {{end}}OpenSandbox Dashboard</title>
+    <title>{{if .SandboxID}}{{.SandboxID}} · {{else if .SnapshotID}}{{.SnapshotID}} · {{else if .PoolName}}{{.PoolName}} · {{else if eq .Page "snapshots"}}Snapshots · {{else if eq .Page "pools"}}Pools · {{else if eq .Page "stats"}}Stats · {{end}}OpenSandbox Dashboard</title>
     <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/assets/third-party/ui/basecoat.min.css">
     <link rel="stylesheet" href="/assets/styles.css">
@@ -34,10 +34,15 @@
         </div>
 
         <nav class="sidebar-nav" aria-label="Primary navigation">
-          <a class="nav-item" data-nav-page="sandboxes" href="/" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/" {{if or (eq .Page "list") (eq .Page "detail")}}aria-current="page"{{end}}>
+          <a class="nav-item" data-nav-page="sandboxes" href="/" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/" {{if or (eq .Page "list") (and (eq .Page "detail") (not .ParentPool))}}aria-current="page"{{end}}>
             <span class="nav-item-icon"><i data-lucide="boxes"></i></span>
             <span class="nav-item-label">Sandboxes</span>
             <span id="sandbox-nav-count" class="nav-item-count">0</span>
+          </a>
+          <a class="nav-item" data-nav-page="pools" href="/pools" hx-get="/dashboard/pools" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/pools" {{if or (eq .Page "pools") (eq .Page "pool-detail") .ParentPool}}aria-current="page"{{end}}>
+            <span class="nav-item-icon"><i data-lucide="package-open"></i></span>
+            <span class="nav-item-label">Pools</span>
+            <span id="pool-nav-count" class="nav-item-count">0</span>
           </a>
           <a class="nav-item" data-nav-page="snapshots" href="/snapshots" hx-get="/dashboard/snapshots" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/snapshots" {{if or (eq .Page "snapshots") (eq .Page "snapshot-detail")}}aria-current="page"{{end}}>
             <span class="nav-item-icon"><i data-lucide="layers-3"></i></span>
@@ -70,15 +75,29 @@
           <header class="topbar">
             <div id="navigation-title" class="topbar-breadcrumb">
               {{if .SandboxID}}
-                <a href="/" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/">Sandboxes</a>
+                {{if .ParentPool}}
+                  <a href="/pools" hx-get="/dashboard/pools" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/pools">Pools</a>
+                  <span class="topbar-breadcrumb-sep">/</span>
+                  <a href="/pools/{{urlquery .ParentPool}}" hx-get="/dashboard/pools/{{urlquery .ParentPool}}/fragment" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/pools/{{urlquery .ParentPool}}">{{.ParentPool}}</a>
+                  <span class="topbar-breadcrumb-sep">/</span>
+                  <span class="topbar-breadcrumb-label">Sandboxes</span>
+                {{else}}
+                  <a href="/" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/">Sandboxes</a>
+                {{end}}
                 <span class="topbar-breadcrumb-sep">/</span>
-                <span class="topbar-breadcrumb-current copyable-value" title="{{.SandboxID}}">{{.SandboxID}}</span>
+                <span class="topbar-breadcrumb-current{{if not .ParentPool}} copyable-value{{end}}" title="{{.SandboxID}}">{{.SandboxID}}</span>
               {{else if .SnapshotID}}
                 <a href="/snapshots" hx-get="/dashboard/snapshots" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/snapshots">Snapshots</a>
                 <span class="topbar-breadcrumb-sep">/</span>
                 <span class="topbar-breadcrumb-current copyable-value" title="{{.SnapshotID}}">{{.SnapshotID}}</span>
+              {{else if .PoolName}}
+                <a href="/pools" hx-get="/dashboard/pools" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/pools">Pools</a>
+                <span class="topbar-breadcrumb-sep">/</span>
+                <span class="topbar-breadcrumb-current copyable-value" title="{{.PoolName}}">{{.PoolName}}</span>
               {{else if eq .Page "snapshots"}}
                 <span class="topbar-breadcrumb-current">Snapshots</span>
+              {{else if eq .Page "pools"}}
+                <span class="topbar-breadcrumb-current">Pools</span>
               {{else if eq .Page "stats"}}
                 <span class="topbar-breadcrumb-current">Stats</span>
               {{else}}
@@ -156,6 +175,7 @@
       >
         <input name="snapshotId" type="hidden" value="">
         <input name="snapshotName" type="hidden" value="">
+        <input name="poolRef" type="hidden" value="">
         <header class="app-modal-header">
           <span id="create-sandbox-modal-icon" class="app-modal-icon" data-create-sandbox-icon aria-hidden="true"><i data-lucide="box"></i></span>
           <div>
@@ -195,7 +215,10 @@
             <span>Snapshot</span>
             <output id="sandbox-snapshot-source" class="app-form-static-value copyable-value"></output>
           </div>
-          <div class="app-form-field">
+          <p class="pool-acquire-prompt" data-pool-source-field hidden>
+            Acquiring from <output id="sandbox-pool-source" class="copyable-value"></output> ?
+          </p>
+          <div class="app-form-field" data-resource-preset-field>
             <label for="resource-preset-label">Resources</label>
             <span class="preset-input-control">
               <input id="resource-preset-label" type="text" value="1 core / 2 GiB" readonly tabindex="-1" autocomplete="off" data-1p-ignore data-lpignore="true">

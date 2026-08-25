@@ -22,6 +22,7 @@ type Sandbox struct {
 	Image     string
 	CPU       string
 	Memory    string
+	PoolRef   string
 	Metadata  map[string]string
 	Sources   []string
 	Resources []ResourceReference
@@ -41,10 +42,29 @@ type ResourceReference struct {
 type CreateSandboxRequest struct {
 	Image          string
 	SnapshotID     string
+	PoolRef        string
 	Entrypoint     []string
 	Timeout        time.Duration
 	ResourceLimits map[string]string
 	Metadata       map[string]string
+}
+
+// Pool is a pre-warmed sandbox resource pool discovered from Kubernetes.
+type Pool struct {
+	Name         string
+	Namespace    string
+	CreatedAt    time.Time
+	Image        string
+	CPU          string
+	Memory       string
+	RuntimeClass string
+	BufferMin    int32
+	BufferMax    int32
+	PoolMin      int32
+	PoolMax      int32
+	Total        int32
+	Allocated    int32
+	Available    int32
 }
 
 // Snapshot is a persistent point-in-time capture managed by the lifecycle API.
@@ -107,8 +127,37 @@ type apiCreateRequest struct {
 	SnapshotID     string            `json:"snapshotId,omitempty"`
 	Entrypoint     []string          `json:"entrypoint,omitempty"`
 	Timeout        *int              `json:"timeout,omitempty"`
-	ResourceLimits map[string]string `json:"resourceLimits"`
+	ResourceLimits map[string]string `json:"resourceLimits,omitempty"`
 	Metadata       map[string]string `json:"metadata,omitempty"`
+	Extensions     map[string]string `json:"extensions,omitempty"`
+}
+
+type poolResourceList struct {
+	Items []poolResource `json:"items"`
+}
+
+type poolResource struct {
+	Metadata resourceMetadata   `json:"metadata"`
+	Spec     poolResourceSpec   `json:"spec"`
+	Status   poolResourceStatus `json:"status"`
+}
+
+type poolResourceSpec struct {
+	Template     podTemplate      `json:"template"`
+	CapacitySpec poolCapacitySpec `json:"capacitySpec"`
+}
+
+type poolCapacitySpec struct {
+	BufferMin int32 `json:"bufferMin"`
+	BufferMax int32 `json:"bufferMax"`
+	PoolMin   int32 `json:"poolMin"`
+	PoolMax   int32 `json:"poolMax"`
+}
+
+type poolResourceStatus struct {
+	Total     int32 `json:"total"`
+	Allocated int32 `json:"allocated"`
+	Available int32 `json:"available"`
 }
 
 type snapshotListResponse struct {
@@ -154,12 +203,14 @@ type resourceMetadata struct {
 	Name              string            `json:"name"`
 	Namespace         string            `json:"namespace"`
 	Labels            map[string]string `json:"labels"`
+	Annotations       map[string]string `json:"annotations"`
 	CreationTimestamp time.Time         `json:"creationTimestamp"`
 }
 
 type resourceSpec struct {
 	Template    podTemplate `json:"template"`
 	PodTemplate podTemplate `json:"podTemplate"`
+	PoolRef     string      `json:"poolRef"`
 }
 
 type podTemplate struct {
@@ -167,8 +218,9 @@ type podTemplate struct {
 }
 
 type podSpec struct {
-	NodeName   string          `json:"nodeName"`
-	Containers []containerSpec `json:"containers"`
+	NodeName         string          `json:"nodeName"`
+	RuntimeClassName string          `json:"runtimeClassName"`
+	Containers       []containerSpec `json:"containers"`
 }
 
 type containerSpec struct {
@@ -187,6 +239,10 @@ type resourceStatus struct {
 	Ready      int                 `json:"ready"`
 	Selector   string              `json:"selector"`
 	Conditions []resourceCondition `json:"conditions"`
+}
+
+type sandboxAllocation struct {
+	Pods []string `json:"pods"`
 }
 
 type resourceCondition struct {

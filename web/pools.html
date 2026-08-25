@@ -1,0 +1,80 @@
+<title>Pools · OpenSandbox Dashboard</title>
+<section
+  id="dashboard-content"
+  data-page="pools"
+  hx-get="/dashboard/pools"
+  hx-trigger="dashboardRefresh"
+  hx-swap="outerHTML"
+  aria-live="polite"
+>
+<div id="navigation-title" class="topbar-breadcrumb" hx-swap-oob="true">
+  <span class="topbar-breadcrumb-current">Pools</span>
+</div>
+<span id="page-toolbar-action" class="toolbar-action" hx-swap-oob="true"></span>
+<span id="sandbox-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SandboxTotal}}</span>
+<span id="pool-nav-count" class="nav-item-count" hx-swap-oob="true">{{.Total}}</span>
+<span id="snapshot-nav-count" class="nav-item-count" hx-swap-oob="true">{{.SnapshotTotal}}</span>
+
+<div class="filter-tabs" aria-label="Pool count">
+  <span class="filter-pill pool-count-pill" data-active="true">All <span class="count">&nbsp;{{.Total}}</span></span>
+</div>
+
+{{if .Error}}
+  <div class="dashboard-error" role="alert">
+    <i data-lucide="circle-alert" aria-hidden="true"></i>
+    <span>{{.Error}}</span>
+  </div>
+{{end}}
+
+{{if .Pools}}
+  <section class="sandbox-group pool-group" aria-labelledby="pool-group-title">
+    <div class="group-header">
+      <span class="group-title" id="pool-group-title">
+        <strong>Resource pools</strong>
+        <span class="count">{{len .Pools}}</span>
+      </span>
+    </div>
+    <div class="pool-list">
+      {{range .Pools}}
+        <a
+          class="pool-row"
+          href="/pools/{{urlquery .Name}}"
+          hx-get="/dashboard/pools/{{urlquery .Name}}/fragment"
+          hx-target="#dashboard-content"
+          hx-swap="outerHTML"
+          hx-push-url="/pools/{{urlquery .Name}}"
+          aria-label="Open pool {{.Name}}"
+        >
+          <span class="status-ring" data-status="{{.State}}" aria-hidden="true"></span>
+          <div class="pool-identity">
+            <strong>{{.Name}}</strong>
+            <span>{{.Namespace}}</span>
+          </div>
+          <div class="pool-capacity" aria-label="{{.Available}} available sandbox, {{.Allocated}} allocated sandbox, {{.Total}} total sandbox">
+            <span><strong>{{.Available}}</strong><small>available sandbox</small></span>
+            <span><strong>{{.Allocated}}</strong><small>allocated sandbox</small></span>
+            <span><strong>{{.Total}}</strong><small>total sandbox</small></span>
+          </div>
+          <div class="pool-specs">
+            <span title="Pool minimum and maximum"><i data-lucide="between-horizontal-start" aria-hidden="true"></i>pool min: {{.PoolMin}} max: {{.PoolMax}}</span>
+            <span title="Warm buffer minimum and maximum"><i data-lucide="flame-kindling" aria-hidden="true"></i>buffer min: {{.BufferMin}} max: {{.BufferMax}}</span>
+          </div>
+          <div class="pool-runtime" title="{{.Image}} · {{.Resources}}">
+            <span><i data-lucide="disc" aria-hidden="true"></i>{{.Image}}</span>
+            <span><i data-lucide="cpu" aria-hidden="true"></i>{{.Resources}}</span>
+          </div>
+          <div class="pool-row-meta">
+            <time datetime="{{.CreatedAtISO}}" data-created-time>created {{.CreatedAtFallback}}</time>
+          </div>
+        </a>
+      {{end}}
+    </div>
+  </section>
+{{else}}
+  <div class="empty-state pool-empty-state">
+    <span class="empty-state-icon" aria-hidden="true"><i data-lucide="package-open"></i></span>
+    <h2>No pools yet</h2>
+    <p>Declare an OpenSandbox Pool resource to keep sandbox capacity warm.</p>
+  </div>
+{{end}}
+</section>
