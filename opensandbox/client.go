@@ -29,6 +29,8 @@ const apiKeyHeader = "OPEN-SANDBOX-API-KEY"
 // Reader defines read-only OpenSandbox operations.
 type Reader interface {
 	ListSandboxes(context.Context) ([]Sandbox, error)
+	ListPools(context.Context) ([]Pool, error)
+	GetPool(context.Context, string) (Pool, error)
 	ListSnapshots(context.Context) ([]Snapshot, error)
 	GetSnapshot(context.Context, string) (Snapshot, error)
 	ListSandboxNodeLoads(context.Context) ([]SandboxNodeLoad, error)

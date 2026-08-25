@@ -198,6 +198,7 @@ func batchSandboxFromResource(resource sandboxResource, pods []podResource) Sand
 		Image:     firstContainerImage(resource.Spec.Template.Spec),
 		CPU:       cpu,
 		Memory:    memory,
+		PoolRef:   resource.Spec.PoolRef,
 		Metadata:  userMetadata(resource.Metadata.Labels),
 		Sources:   []string{SourceBatchSandbox},
 		Resources: []ResourceReference{{
@@ -236,6 +237,12 @@ func agentSandboxFromResource(resource sandboxResource, pods []podResource) Sand
 }
 
 func batchSandboxPodName(resource sandboxResource, pods []podResource) string {
+	if rawAllocation := resource.Metadata.Annotations["sandbox.opensandbox.io/alloc-status"]; rawAllocation != "" {
+		var allocation sandboxAllocation
+		if json.Unmarshal([]byte(rawAllocation), &allocation) == nil && len(allocation.Pods) != 0 {
+			return allocation.Pods[0]
+		}
+	}
 	for _, pod := range sortedPods(pods) {
 		if pod.Metadata.Labels["batch-sandbox.sandbox.opensandbox.io/name"] == resource.Metadata.Name ||
 			ownedBy(pod, "BatchSandbox", resource.Metadata.Name) {
@@ -411,6 +418,9 @@ func mergeSandboxes(sources ...[]Sandbox) []Sandbox {
 			}
 			if existing.Memory == "" {
 				existing.Memory = sandbox.Memory
+			}
+			if existing.PoolRef == "" {
+				existing.PoolRef = sandbox.PoolRef
 			}
 			if len(existing.Metadata) == 0 {
 				existing.Metadata = sandbox.Metadata

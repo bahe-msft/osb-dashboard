@@ -173,50 +173,70 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!event.target.closest('.preset-input-control')) { closePresetMenus(); }
   });
 
-  function setCreateSandboxMode(snapshotID, snapshotName) {
+  function setCreateSandboxMode(snapshotID, snapshotName, poolRef) {
     var restoring = Boolean(snapshotID);
+    var acquiring = Boolean(poolRef);
+    var deployment = restoring || acquiring;
+    createSandboxForm.dataset.createMode = acquiring ? 'pool' : (restoring ? 'snapshot' : 'image');
     createSandboxForm.elements.snapshotId.value = snapshotID || '';
     createSandboxForm.elements.snapshotName.value = snapshotName || snapshotID || '';
-    createSandboxForm.setAttribute('hx-target', restoring ? '#deploy-snapshot-result' : '#dashboard-content');
-    createSandboxForm.setAttribute('hx-swap', restoring ? 'innerHTML' : 'outerHTML');
-    createSandboxForm.elements.image.disabled = restoring;
-    createSandboxForm.elements.image.required = !restoring;
-    createSandboxForm.querySelector('[data-sandbox-image-field]').hidden = restoring;
+    createSandboxForm.elements.poolRef.value = poolRef || '';
+    createSandboxForm.setAttribute('hx-target', deployment ? '#deploy-snapshot-result' : '#dashboard-content');
+    createSandboxForm.setAttribute('hx-swap', deployment ? 'innerHTML' : 'outerHTML');
+    createSandboxForm.elements.image.disabled = deployment;
+    createSandboxForm.elements.image.required = !deployment;
+    createSandboxForm.querySelector('[data-sandbox-image-field]').hidden = deployment;
     createSandboxForm.querySelector('[data-snapshot-source-field]').hidden = !restoring;
+    createSandboxForm.querySelector('[data-pool-source-field]').hidden = !acquiring;
+    createSandboxForm.querySelector('[data-resource-preset-field]').hidden = acquiring;
     var snapshotSource = document.getElementById('sandbox-snapshot-source');
     snapshotSource.textContent = restoring ? (snapshotName || snapshotID) : '';
     snapshotSource.title = restoring ? snapshotID : '';
-    document.getElementById('create-sandbox-modal-title').textContent = restoring ? 'Deploy snapshot' : 'Create sandbox';
-    createSandboxForm.querySelector('.create-button-label').textContent = restoring ? 'Deploy' : 'Create';
-    createSandboxForm.querySelector('[data-create-loading-label]').textContent = restoring ? 'Deploying' : 'Creating';
+    var poolSource = document.getElementById('sandbox-pool-source');
+    poolSource.textContent = acquiring ? poolRef : '';
+    poolSource.title = acquiring ? poolRef : '';
+    var modalTitle = acquiring ? 'Acquire sandbox' : (restoring ? 'Deploy snapshot' : 'Create sandbox');
+    var submitLabel = acquiring ? 'Proceed' : (restoring ? 'Deploy' : 'Create');
+    var loadingLabel = acquiring ? 'Acquiring' : (restoring ? 'Deploying' : 'Creating');
+    document.getElementById('create-sandbox-modal-title').textContent = modalTitle;
+    createSandboxForm.querySelector('.create-button-label').textContent = submitLabel;
+    createSandboxForm.querySelector('[data-create-loading-label]').textContent = loadingLabel;
     var modalIcon = document.querySelector('[data-create-sandbox-icon]');
     modalIcon.removeAttribute('data-state');
     modalIcon.removeAttribute('hx-swap-oob');
-    modalIcon.innerHTML = '<i data-lucide="' + (restoring ? 'archive-restore' : 'box') + '"></i>';
+    modalIcon.innerHTML = '<i data-lucide="' + (acquiring ? 'monitor-up' : (restoring ? 'archive-restore' : 'box')) + '"></i>';
     if (window.lucide) { lucide.createIcons(); }
   }
 
-  function openCreateSandboxModal(snapshotID, snapshotName) {
+  function openCreateSandboxModal(snapshotID, snapshotName, poolRef) {
     createSandboxError.hidden = true;
     createSandboxError.textContent = '';
     document.getElementById('deploy-snapshot-result').innerHTML = '';
     createSandboxModal.classList.remove('is-closing');
     createSandboxModal.returnValue = '';
     closePresetMenus();
-    setCreateSandboxMode(snapshotID, snapshotName);
+    setCreateSandboxMode(snapshotID, snapshotName, poolRef);
     createSandboxModal.showModal();
     requestAnimationFrame(function () {
-      (snapshotID ? document.getElementById('resource-presets-toggle') : createSandboxForm.elements.image).focus();
+      var focusTarget = poolRef
+        ? createSandboxForm.querySelector('.create-submit-button')
+        : (snapshotID ? document.getElementById('resource-presets-toggle') : createSandboxForm.elements.image);
+      focusTarget.focus();
     });
   }
 
   document.body.addEventListener('click', function (event) {
-    var restore = event.target.closest('[data-restore-snapshot]');
-    if (restore) {
-      openCreateSandboxModal(restore.dataset.snapshotId, restore.dataset.snapshotName);
+    var pool = event.target.closest('[data-deploy-pool]');
+    if (pool) {
+      openCreateSandboxModal('', '', pool.dataset.poolRef);
       return;
     }
-    if (event.target.closest('[data-open-create-modal]')) { openCreateSandboxModal('', ''); }
+    var restore = event.target.closest('[data-restore-snapshot]');
+    if (restore) {
+      openCreateSandboxModal(restore.dataset.snapshotId, restore.dataset.snapshotName, '');
+      return;
+    }
+    if (event.target.closest('[data-open-create-modal]')) { openCreateSandboxModal('', '', ''); }
   });
 
   createSandboxModal.addEventListener('cancel', function (event) {
@@ -233,7 +253,7 @@ document.addEventListener('DOMContentLoaded', function () {
   createSandboxModal.addEventListener('close', function () {
     createSandboxForm.reset();
     document.getElementById('deploy-snapshot-result').innerHTML = '';
-    setCreateSandboxMode('', '');
+    setCreateSandboxMode('', '', '');
     closePresetMenus();
     createSandboxError.hidden = true;
     createSandboxError.textContent = '';
@@ -325,7 +345,44 @@ document.addEventListener('DOMContentLoaded', function () {
     window.setTimeout(window.refreshDashboard, 500);
   });
 
+  function dashboardNavigationElement(element) {
+    return element && element.closest('[hx-get][hx-target="#dashboard-content"]');
+  }
+
+  // Prefer HTMX navigation, but fall back to the element's browser-history URL
+  // when a live refresh is already in flight. Leaving the current document
+  // cancels that refresh without allowing it to detach and discard the click.
+  document.addEventListener('click', function (event) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) { return; }
+    var navigation = dashboardNavigationElement(event.target);
+    if (!navigation) { return; }
+    if (window.osbDashboardRefreshActive === true) {
+      var fallbackURL = navigation.getAttribute('href') || navigation.getAttribute('hx-push-url');
+      if (fallbackURL && fallbackURL !== 'false') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        window.location.assign(fallbackURL);
+        return;
+      }
+    }
+    window.osbDashboardNavigationActive = true;
+    window.clearTimeout(window.osbDashboardNavigationTimer);
+    window.osbDashboardNavigationTimer = window.setTimeout(function () {
+      window.osbDashboardNavigationActive = false;
+    }, 10 * 1000);
+  }, true);
+
+  document.body.addEventListener('htmx:beforeSwap', function (event) {
+    var requestElement = event.detail.requestConfig && event.detail.requestConfig.elt;
+    if (!dashboardNavigationElement(requestElement)) { return; }
+    window.osbDashboardNavigationActive = false;
+    window.clearTimeout(window.osbDashboardNavigationTimer);
+  });
+
   document.body.addEventListener('htmx:afterRequest', function (event) {
+    if (event.detail.elt.id === 'dashboard-content') {
+      window.osbDashboardRefreshActive = false;
+    }
     if (!event.detail.successful) { return; }
     if (event.detail.elt.closest('[data-view-snapshot]')) {
       dismissModal(createSnapshotModal, 'view-snapshot');
@@ -336,6 +393,9 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   document.body.addEventListener('htmx:beforeRequest', function (event) {
+    if (event.detail.elt.id === 'dashboard-content') {
+      window.osbDashboardRefreshActive = true;
+    }
     var action = event.detail.elt.closest('[data-sandbox-lifecycle-action]');
     if (!action) { return; }
     window.osbSandboxInfoPanel = 'details';
@@ -738,7 +798,7 @@ document.addEventListener('DOMContentLoaded', function () {
   };
 
   window.refreshDashboard = function () {
-    if (document.visibilityState !== 'visible' || window.osbLiveUpdatesEnabled === false || window.osbLifecycleActionActive === true || !window.htmx) { return; }
+    if (document.visibilityState !== 'visible' || window.osbLiveUpdatesEnabled === false || window.osbLifecycleActionActive === true || window.osbDashboardNavigationActive === true || !window.htmx) { return; }
     var content = document.getElementById('dashboard-content');
     if (content && content.dataset.page === 'detail' && window.osbSandboxInfoPanel === 'stats') {
       var stats = document.getElementById('sandbox-live-stats');
@@ -831,7 +891,13 @@ document.addEventListener('DOMContentLoaded', function () {
   window.updatePrimaryNavigation = function () {
     var content = document.getElementById('dashboard-content');
     if (!content) { return; }
-    var page = content.dataset.page === 'stats' ? 'stats' : (content.dataset.page.indexOf('snapshot') === 0 ? 'snapshots' : 'sandboxes');
+    var page = content.dataset.parentPool
+      ? 'pools'
+      : (content.dataset.page === 'stats'
+          ? 'stats'
+          : (content.dataset.page.indexOf('pool') === 0
+              ? 'pools'
+              : (content.dataset.page.indexOf('snapshot') === 0 ? 'snapshots' : 'sandboxes')));
     document.querySelectorAll('[data-nav-page]').forEach(function (item) {
       if (item.dataset.navPage === page) {
         item.setAttribute('aria-current', 'page');

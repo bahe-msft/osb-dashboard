@@ -20,6 +20,14 @@ func (libraryClient) ListSandboxes(context.Context) ([]opensandbox.Sandbox, erro
 	return nil, nil
 }
 
+func (libraryClient) ListPools(context.Context) ([]opensandbox.Pool, error) {
+	return nil, nil
+}
+
+func (libraryClient) GetPool(context.Context, string) (opensandbox.Pool, error) {
+	return opensandbox.Pool{}, nil
+}
+
 func (libraryClient) ListSnapshots(context.Context) ([]opensandbox.Snapshot, error) {
 	return nil, nil
 }
