@@ -53,9 +53,7 @@ func NewSwapbookHandler() (http.Handler, error) {
 	running := swapbookSandbox("sandbox-running", "running", "python:3.12-slim", "1 core / 2 GiB", "sandbox-running-0", now.Add(-4*time.Minute))
 	pooled := swapbookSandbox("sandbox-pool-1", "running", "python:3.12-slim", "1 core / 2 GiB", "default-pool-a1b2c", now.Add(-2*time.Minute))
 
-	readyPool := swapbookPool("ready", "Ready", 1, 0, 1, now.Add(-time.Hour))
 	capacityPool := swapbookPool("at-capacity", "At capacity", 0, 2, 2, now.Add(-time.Hour))
-	readyPoolDetail := poolDetailData{poolView: readyPool, PoolTotal: 1, SandboxTotal: 1}
 	capacityPoolDetail := poolDetailData{poolView: capacityPool, PoolTotal: 1, SandboxTotal: 2, ActiveSandboxes: []sandboxView{pooled, running}}
 
 	emptySnapshots := newSnapshotsData(nil, 1)
@@ -150,10 +148,19 @@ func NewSwapbookHandler() (http.Handler, error) {
 	)
 	reg.DocStory("Pools", "Toggle Pool states independently. Turn every state off to preview the empty page.")
 
+	poolDetailControls := []adapter.Control{
+		{Name: "state", Type: "select", Default: "ready", Options: []string{"ready", "scaling", "atCapacity", "degraded"}},
+		{Name: "activeSandboxes", Type: "bool", Default: false},
+	}
 	reg.RegisterIn("pages", "Pool details",
-		swapbookPageVariant("ready empty", index, pageData{SandboxImage: "python:3.12-slim", PoolName: "default-pool", Page: "pool-detail", ContentURL: "/dashboard/pools/default-pool/fragment"}, "GET /dashboard/pools/default-pool/fragment", swapbookRender(pool, readyPoolDetail)),
-		swapbookPageVariant("active sandboxes", index, pageData{SandboxImage: "python:3.12-slim", PoolName: "default-pool", Page: "pool-detail", ContentURL: "/dashboard/pools/default-pool/fragment"}, "GET /dashboard/pools/default-pool/fragment", swapbookRender(pool, capacityPoolDetail)),
+		adapter.VarC("states", poolDetailControls, func(args adapter.Args) adapter.Renderer {
+			return swapbookRender(index, pageData{
+				SandboxImage: "python:3.12-slim", PoolName: "default-pool", Page: "pool-detail",
+				ContentURL: swapbookDetailControlURL("/dashboard/swapbook/pool-detail", args, "activeSandboxes"),
+			})
+		}),
 	)
+	reg.DocStory("Pool details", "Select the Pool state and toggle allocated sandboxes independently.")
 
 	reg.RegisterIn("pages", "Snapshots",
 		swapbookPageVariant("empty", index, pageData{SandboxImage: "python:3.12-slim", Page: "snapshots", ContentURL: "/dashboard/snapshots"}, "GET /dashboard/snapshots", swapbookRender(snapshots, emptySnapshots)),
@@ -164,10 +171,26 @@ func NewSwapbookHandler() (http.Handler, error) {
 		swapbookPageVariant("with nodes", index, pageData{SandboxImage: "python:3.12-slim", Page: "stats", ContentURL: "/dashboard/stats"}, "GET /dashboard/stats", swapbookRender(stats, clusterStats)),
 	)
 
+	sandboxDetailControls := []adapter.Control{
+		{Name: "state", Type: "select", Default: "running", Options: []string{"running", "pending", "paused", "failed"}},
+		{Name: "fromPool", Type: "bool", Default: false},
+	}
 	reg.RegisterIn("details", "Sandbox details",
-		swapbookPageVariant("standalone", index, pageData{SandboxImage: "python:3.12-slim", SandboxID: running.ID, Page: "detail", ContentURL: "/dashboard/sandboxes/sandbox-running/fragment"}, "GET /dashboard/sandboxes/sandbox-running/fragment", swapbookRender(sandbox, sandboxDetail)),
-		swapbookPageVariant("from pool", index, pageData{SandboxImage: "python:3.12-slim", SandboxID: pooled.ID, ParentPool: "default-pool", Page: "detail", ContentURL: "/dashboard/sandboxes/sandbox-pool-1/fragment?pool=default-pool"}, "GET /dashboard/sandboxes/sandbox-pool-1/fragment?pool=default-pool", swapbookRender(sandbox, pooledDetail)),
+		adapter.VarC("states", sandboxDetailControls, func(args adapter.Args) adapter.Renderer {
+			fromPool := args.Bool("fromPool")
+			sandboxID := "sandbox-running"
+			parentPool := ""
+			if fromPool {
+				sandboxID = "sandbox-pool-1"
+				parentPool = "default-pool"
+			}
+			return swapbookRender(index, pageData{
+				SandboxImage: "python:3.12-slim", SandboxID: sandboxID, ParentPool: parentPool, Page: "detail",
+				ContentURL: swapbookDetailControlURL("/dashboard/swapbook/sandbox-detail", args, "fromPool"),
+			})
+		}),
 	)
+	reg.DocStory("Sandbox details", "Select lifecycle state and toggle Pool ownership without maintaining separate variants.")
 
 	assetsFS, err := fs.Sub(webFiles, "web/assets")
 	if err != nil {
@@ -185,6 +208,18 @@ func NewSwapbookHandler() (http.Handler, error) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := pools.Execute(w, swapbookPoolsData(request.URL.Query(), now)); err != nil {
 			http.Error(w, "render pools: "+err.Error(), http.StatusInternalServerError)
+		}
+	})
+	mux.HandleFunc("GET /dashboard/swapbook/pool-detail", func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := pool.Execute(w, swapbookPoolDetailData(request.URL.Query(), now)); err != nil {
+			http.Error(w, "render pool detail: "+err.Error(), http.StatusInternalServerError)
+		}
+	})
+	mux.HandleFunc("GET /dashboard/swapbook/sandbox-detail", func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := sandbox.Execute(w, swapbookSandboxDetailData(request.URL.Query(), now)); err != nil {
+			http.Error(w, "render sandbox detail: "+err.Error(), http.StatusInternalServerError)
 		}
 	})
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assetsFS))))
@@ -212,6 +247,14 @@ func swapbookPageVariant(name string, index *template.Template, page pageData, r
 func swapbookControlURL(path string, args adapter.Args, names ...string) string {
 	values := url.Values{}
 	for _, name := range names {
+		values.Set(name, strconv.FormatBool(args.Bool(name)))
+	}
+	return path + "?" + values.Encode()
+}
+
+func swapbookDetailControlURL(path string, args adapter.Args, boolNames ...string) string {
+	values := url.Values{"state": {args.String("state")}}
+	for _, name := range boolNames {
 		values.Set(name, strconv.FormatBool(args.Bool(name)))
 	}
 	return path + "?" + values.Encode()
@@ -264,6 +307,59 @@ func swapbookPoolsData(values url.Values, now time.Time) poolsData {
 		views = append(views, view)
 	}
 	return poolsData{Total: len(views), SandboxTotal: 2, Pools: views}
+}
+
+func swapbookPoolDetailData(values url.Values, now time.Time) poolDetailData {
+	state := values.Get("state")
+	var view poolView
+	switch state {
+	case "scaling":
+		view = swapbookPool("pending", "Scaling", 0, 1, 1, now.Add(-40*time.Minute))
+	case "atCapacity":
+		view = swapbookPool("at-capacity", "At capacity", 0, 2, 2, now.Add(-2*time.Hour))
+	case "degraded":
+		view = swapbookPool("degraded", "Degraded", 0, 1, 2, now.Add(-3*time.Hour))
+	default:
+		view = swapbookPool("ready", "Ready", 1, 0, 1, now.Add(-time.Hour))
+	}
+	var active []sandboxView
+	if swapbookQueryBool(values, "activeSandboxes", nil) {
+		fixtures := []sandboxView{
+			swapbookSandbox("sandbox-pool-1", "running", "python:3.12-slim", "1 core / 2 GiB", "default-pool-a1b2c", now.Add(-2*time.Minute)),
+			swapbookSandbox("sandbox-running", "running", "python:3.12-slim", "1 core / 2 GiB", "sandbox-running-0", now.Add(-4*time.Minute)),
+		}
+		count := int(view.Allocated)
+		if count == 0 {
+			count = 1
+			view.Allocated = 1
+			view.Total = view.Available + view.Allocated
+		}
+		active = fixtures[:min(count, len(fixtures))]
+	}
+	return poolDetailData{poolView: view, PoolTotal: 1, SandboxTotal: 2, ActiveSandboxes: active}
+}
+
+func swapbookSandboxDetailData(values url.Values, now time.Time) sandboxDetailData {
+	state := values.Get("state")
+	if state != "pending" && state != "paused" && state != "failed" {
+		state = "running"
+	}
+	fromPool := swapbookQueryBool(values, "fromPool", nil)
+	id := "sandbox-running"
+	pod := "sandbox-running-0"
+	parentPool := ""
+	poolRef := ""
+	if fromPool {
+		id = "sandbox-pool-1"
+		pod = "default-pool-a1b2c"
+		parentPool = "default-pool"
+		poolRef = "default-pool"
+	}
+	view := swapbookSandbox(id, state, "python:3.12-slim", "1 core / 2 GiB", pod, now.Add(-4*time.Minute))
+	data := swapbookSandboxDetail(view)
+	data.ParentPool = parentPool
+	data.PoolRef = poolRef
+	return data
 }
 
 func swapbookQueryBool(values url.Values, name string, defaults map[string]bool) bool {

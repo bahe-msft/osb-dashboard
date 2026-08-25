@@ -44,7 +44,7 @@ func TestSwapbookHandler(t *testing.T) {
 	if len(manifest.Stories) != 6 {
 		t.Fatalf("stories = %d, want 6", len(manifest.Stories))
 	}
-	wantControls := map[string]int{"Sandbox overview": 5, "Pools": 4}
+	wantControls := map[string]int{"Sandbox overview": 5, "Pools": 4, "Pool details": 2, "Sandbox details": 2}
 	for _, story := range manifest.Stories {
 		if want, ok := wantControls[story.Name]; ok {
 			if len(story.Variants) != 1 || story.Variants[0].Name != "states" || len(story.Variants[0].Controls) != want {
@@ -53,16 +53,16 @@ func TestSwapbookHandler(t *testing.T) {
 		}
 	}
 
-	response, err = http.Get(server.URL + "/_swapbook/mocks/sandbox-details/from%20pool")
+	response, err = http.Get(server.URL + "/_swapbook/mocks/sandbox-details/states")
 	if err != nil {
-		t.Fatalf("GET from-pool mocks: %v", err)
+		t.Fatalf("GET sandbox-detail mocks: %v", err)
 	}
 	var mocks []struct {
 		Path string `json:"path"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&mocks); err != nil {
 		response.Body.Close()
-		t.Fatalf("decode from-pool mocks: %v", err)
+		t.Fatalf("decode sandbox-detail mocks: %v", err)
 	}
 	response.Body.Close()
 	wantMock := "/dashboard/sandboxes/sandbox-pool-1/fragment?pool=default-pool"
@@ -71,17 +71,19 @@ func TestSwapbookHandler(t *testing.T) {
 		foundMock = foundMock || mock.Path == wantMock
 	}
 	if !foundMock {
-		t.Errorf("from-pool mocks do not contain %q: %#v", wantMock, mocks)
+		t.Errorf("sandbox-detail mocks do not contain %q: %#v", wantMock, mocks)
 	}
 
 	for _, test := range []struct {
 		path string
 		want string
 	}{
-		{path: "/_swapbook/preview/pool-details/active%20sandboxes", want: "default-pool"},
+		{path: "/_swapbook/preview/pool-details/states", want: "default-pool"},
 		{path: "/_swapbook/preview/sandbox-overview/states", want: "OpenSandbox"},
 		{path: "/dashboard/overview?running=false&pending=false&paused=true&failed=true&error=true", want: "sandbox-paused"},
 		{path: "/dashboard/pools?ready=false&scaling=true&atCapacity=true&degraded=true", want: "scaling-pool"},
+		{path: "/dashboard/swapbook/pool-detail?state=degraded&activeSandboxes=true", want: "Degraded"},
+		{path: "/dashboard/swapbook/sandbox-detail?state=paused&fromPool=true", want: "default-pool"},
 		{path: "/assets/styles.css", want: "OpenSandbox dashboard UI guidelines"},
 	} {
 		response, err := http.Get(server.URL + test.path)
