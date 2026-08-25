@@ -12,6 +12,33 @@ just dev /path/to/kubeconfig
 The dashboard listens on `127.0.0.1:8080` by default. Override the address with
 `HTTP_ADDR`.
 
+### Component workbench
+
+The development-only [Swapbook](https://github.com/aejkatappaja/swapbook)
+workbench renders dashboard pages and states with the production templates,
+styles, scripts, and HTMX behavior—without requiring a Kubernetes cluster or a
+JavaScript toolchain:
+
+```bash
+just swapbook
+```
+
+Open `http://127.0.0.1:7007/__sb/`. The command builds a target with the
+`swapbook` Go build tag on `127.0.0.1:8081`, then starts the pinned Swapbook
+proxy. Override those ports with `SWAPBOOK_TARGET_ADDR` and `SWAPBOOK_PORT`.
+The adapter and fixture stories are excluded from normal dashboard builds.
+
+To check only that every story renders:
+
+```bash
+# terminal 1
+go run -tags swapbook ./cmd/osb-dashboard-swapbook
+
+# terminal 2
+go run github.com/Aejkatappaja/swapbook/cmd/swapbook@v0.5.0 \
+  check --target http://127.0.0.1:8081
+```
+
 ### Subpath hosting
 
 Use `--base-path` (or `OSB_DASHBOARD_BASE_PATH`) when the dashboard is exposed
