@@ -8,6 +8,8 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
+	"strconv"
 	"text/template"
 	"time"
 
@@ -49,25 +51,10 @@ func NewSwapbookHandler() (http.Handler, error) {
 
 	now := time.Now()
 	running := swapbookSandbox("sandbox-running", "running", "python:3.12-slim", "1 core / 2 GiB", "sandbox-running-0", now.Add(-4*time.Minute))
-	pending := swapbookSandbox("sandbox-pending", "pending", "node:22-slim", "2 cores / 4 GiB", "sandbox-pending-0", now.Add(-45*time.Second))
-	failed := swapbookSandbox("sandbox-failed", "failed", "ubuntu:24.04", "1 core / 2 GiB", "sandbox-failed-0", now.Add(-12*time.Minute))
 	pooled := swapbookSandbox("sandbox-pool-1", "running", "python:3.12-slim", "1 core / 2 GiB", "default-pool-a1b2c", now.Add(-2*time.Minute))
-
-	emptyOverview := newOverviewData(nil)
-	emptyOverview.PoolTotal = 1
-	runningOverview := newOverviewData([]sandboxView{running})
-	runningOverview.PoolTotal = 1
-	mixedOverview := newOverviewData([]sandboxView{running, pending, failed})
-	mixedOverview.PoolTotal = 1
-	errorOverview := newOverviewData([]sandboxView{running})
-	errorOverview.PoolTotal = 1
-	errorOverview.Error = "Some sandbox sources could not be loaded: lifecycle service unavailable"
 
 	readyPool := swapbookPool("ready", "Ready", 1, 0, 1, now.Add(-time.Hour))
 	capacityPool := swapbookPool("at-capacity", "At capacity", 0, 2, 2, now.Add(-time.Hour))
-	emptyPools := poolsData{SandboxTotal: 1}
-	readyPools := poolsData{Total: 1, SandboxTotal: 1, Pools: []poolView{readyPool}}
-	capacityPools := poolsData{Total: 1, SandboxTotal: 2, Pools: []poolView{capacityPool}}
 	readyPoolDetail := poolDetailData{poolView: readyPool, PoolTotal: 1, SandboxTotal: 1}
 	capacityPoolDetail := poolDetailData{poolView: capacityPool, PoolTotal: 1, SandboxTotal: 2, ActiveSandboxes: []sandboxView{pooled, running}}
 
@@ -109,23 +96,59 @@ func NewSwapbookHandler() (http.Handler, error) {
 	reg.Viewports = []adapter.Viewport{{Name: "dashboard", Width: "1440px"}, {Name: "compact", Width: "480px"}}
 
 	reg.Mock("GET /dashboard/sandboxes/sandbox-running/fragment", swapbookRender(sandbox, sandboxDetail))
+	for _, fixture := range []sandboxView{
+		swapbookSandbox("sandbox-pending", "pending", "node:22-slim", "2 cores / 4 GiB", "sandbox-pending-0", now.Add(-45*time.Second)),
+		swapbookSandbox("sandbox-paused", "paused", "python:3.12-slim", "1 core / 2 GiB", "sandbox-paused-0", now.Add(-8*time.Minute)),
+		swapbookSandbox("sandbox-failed", "failed", "ubuntu:24.04", "1 core / 2 GiB", "sandbox-failed-0", now.Add(-12*time.Minute)),
+	} {
+		detail := swapbookSandboxDetail(fixture)
+		reg.Mock("GET /dashboard/sandboxes/"+fixture.ID+"/fragment", swapbookRender(sandbox, detail))
+	}
 	reg.Mock("GET /dashboard/sandboxes/sandbox-running/fragment?pool=default-pool", swapbookRender(sandbox, sandboxDetail))
 	reg.Mock("GET /dashboard/sandboxes/sandbox-pool-1/fragment?pool=default-pool", swapbookRender(sandbox, pooledDetail))
 	reg.Mock("GET /dashboard/pools/default-pool/fragment", swapbookRender(pool, capacityPoolDetail))
+	for _, view := range swapbookPoolsData(url.Values{
+		"ready":      {"true"},
+		"scaling":    {"true"},
+		"atCapacity": {"true"},
+		"degraded":   {"true"},
+	}, now).Pools {
+		detail := poolDetailData{poolView: view, PoolTotal: 4, SandboxTotal: 2}
+		reg.Mock("GET /dashboard/pools/"+view.Name+"/fragment", swapbookRender(pool, detail))
+	}
 
+	sandboxStateControls := []adapter.Control{
+		{Name: "running", Type: "bool", Default: true},
+		{Name: "pending", Type: "bool", Default: true},
+		{Name: "paused", Type: "bool", Default: false},
+		{Name: "failed", Type: "bool", Default: false},
+		{Name: "error", Type: "bool", Default: false},
+	}
 	reg.RegisterIn("pages", "Sandbox overview",
-		swapbookPageVariant("empty", index, pageData{SandboxImage: "python:3.12-slim", Page: "list", ContentURL: "/dashboard/overview"}, "GET /dashboard/overview", swapbookRender(overview, emptyOverview)),
-		swapbookPageVariant("running", index, pageData{SandboxImage: "python:3.12-slim", Page: "list", ContentURL: "/dashboard/overview"}, "GET /dashboard/overview", swapbookRender(overview, runningOverview)),
-		swapbookPageVariant("mixed states", index, pageData{SandboxImage: "python:3.12-slim", Page: "list", ContentURL: "/dashboard/overview"}, "GET /dashboard/overview", swapbookRender(overview, mixedOverview)),
-		swapbookPageVariant("partial error", index, pageData{SandboxImage: "python:3.12-slim", Page: "list", ContentURL: "/dashboard/overview"}, "GET /dashboard/overview", swapbookRender(overview, errorOverview)),
+		adapter.VarC("states", sandboxStateControls, func(args adapter.Args) adapter.Renderer {
+			return swapbookRender(index, pageData{
+				SandboxImage: "python:3.12-slim", Page: "list",
+				ContentURL: swapbookControlURL("/dashboard/overview", args, "running", "pending", "paused", "failed", "error"),
+			})
+		}),
 	)
-	reg.DocStory("Sandbox overview", "Dashboard sandbox states rendered through the production templates and assets.")
+	reg.DocStory("Sandbox overview", "Toggle sandbox states independently. Turn every state off to preview the empty page; `error` adds the partial-source warning.")
 
+	poolStateControls := []adapter.Control{
+		{Name: "ready", Type: "bool", Default: true},
+		{Name: "scaling", Type: "bool", Default: false},
+		{Name: "atCapacity", Type: "bool", Default: false},
+		{Name: "degraded", Type: "bool", Default: false},
+	}
 	reg.RegisterIn("pages", "Pools",
-		swapbookPageVariant("empty", index, pageData{SandboxImage: "python:3.12-slim", Page: "pools", ContentURL: "/dashboard/pools"}, "GET /dashboard/pools", swapbookRender(pools, emptyPools)),
-		swapbookPageVariant("ready", index, pageData{SandboxImage: "python:3.12-slim", Page: "pools", ContentURL: "/dashboard/pools"}, "GET /dashboard/pools", swapbookRender(pools, readyPools)),
-		swapbookPageVariant("at capacity", index, pageData{SandboxImage: "python:3.12-slim", Page: "pools", ContentURL: "/dashboard/pools"}, "GET /dashboard/pools", swapbookRender(pools, capacityPools)),
+		adapter.VarC("states", poolStateControls, func(args adapter.Args) adapter.Renderer {
+			return swapbookRender(index, pageData{
+				SandboxImage: "python:3.12-slim", Page: "pools",
+				ContentURL: swapbookControlURL("/dashboard/pools", args, "ready", "scaling", "atCapacity", "degraded"),
+			})
+		}),
 	)
+	reg.DocStory("Pools", "Toggle Pool states independently. Turn every state off to preview the empty page.")
 
 	reg.RegisterIn("pages", "Pool details",
 		swapbookPageVariant("ready empty", index, pageData{SandboxImage: "python:3.12-slim", PoolName: "default-pool", Page: "pool-detail", ContentURL: "/dashboard/pools/default-pool/fragment"}, "GET /dashboard/pools/default-pool/fragment", swapbookRender(pool, readyPoolDetail)),
@@ -152,6 +175,18 @@ func NewSwapbookHandler() (http.Handler, error) {
 	}
 	mux := http.NewServeMux()
 	mux.Handle(adapter.MountPath+"/", http.StripPrefix(adapter.MountPath, reg.Handler()))
+	mux.HandleFunc("GET /dashboard/overview", func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := overview.Execute(w, swapbookOverviewData(request.URL.Query(), now)); err != nil {
+			http.Error(w, "render sandbox overview: "+err.Error(), http.StatusInternalServerError)
+		}
+	})
+	mux.HandleFunc("GET /dashboard/pools", func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := pools.Execute(w, swapbookPoolsData(request.URL.Query(), now)); err != nil {
+			http.Error(w, "render pools: "+err.Error(), http.StatusInternalServerError)
+		}
+	})
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assetsFS))))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "ok\n") })
 	return mux, nil
@@ -174,11 +209,86 @@ func swapbookPageVariant(name string, index *template.Template, page pageData, r
 	return adapter.Var(name, swapbookRender(index, page)).Mock(route, fragment)
 }
 
+func swapbookControlURL(path string, args adapter.Args, names ...string) string {
+	values := url.Values{}
+	for _, name := range names {
+		values.Set(name, strconv.FormatBool(args.Bool(name)))
+	}
+	return path + "?" + values.Encode()
+}
+
+func swapbookOverviewData(values url.Values, now time.Time) overviewData {
+	defaults := map[string]bool{"running": true, "pending": true}
+	var sandboxes []sandboxView
+	if swapbookQueryBool(values, "running", defaults) {
+		sandboxes = append(sandboxes, swapbookSandbox("sandbox-running", "running", "python:3.12-slim", "1 core / 2 GiB", "sandbox-running-0", now.Add(-4*time.Minute)))
+	}
+	if swapbookQueryBool(values, "pending", defaults) {
+		sandboxes = append(sandboxes, swapbookSandbox("sandbox-pending", "pending", "node:22-slim", "2 cores / 4 GiB", "sandbox-pending-0", now.Add(-45*time.Second)))
+	}
+	if swapbookQueryBool(values, "paused", defaults) {
+		sandboxes = append(sandboxes, swapbookSandbox("sandbox-paused", "paused", "python:3.12-slim", "1 core / 2 GiB", "sandbox-paused-0", now.Add(-8*time.Minute)))
+	}
+	if swapbookQueryBool(values, "failed", defaults) {
+		sandboxes = append(sandboxes, swapbookSandbox("sandbox-failed", "failed", "ubuntu:24.04", "1 core / 2 GiB", "sandbox-failed-0", now.Add(-12*time.Minute)))
+	}
+	data := newOverviewData(sandboxes)
+	data.PoolTotal = 1
+	if swapbookQueryBool(values, "error", defaults) {
+		data.Error = "Some sandbox sources could not be loaded: lifecycle service unavailable"
+	}
+	return data
+}
+
+func swapbookPoolsData(values url.Values, now time.Time) poolsData {
+	defaults := map[string]bool{"ready": true}
+	var views []poolView
+	if swapbookQueryBool(values, "ready", defaults) {
+		view := swapbookPool("ready", "Ready", 1, 0, 1, now.Add(-time.Hour))
+		view.Name = "ready-pool"
+		views = append(views, view)
+	}
+	if swapbookQueryBool(values, "scaling", defaults) {
+		view := swapbookPool("pending", "Scaling", 0, 1, 1, now.Add(-40*time.Minute))
+		view.Name = "scaling-pool"
+		views = append(views, view)
+	}
+	if swapbookQueryBool(values, "atCapacity", defaults) {
+		view := swapbookPool("at-capacity", "At capacity", 0, 2, 2, now.Add(-2*time.Hour))
+		view.Name = "capacity-pool"
+		views = append(views, view)
+	}
+	if swapbookQueryBool(values, "degraded", defaults) {
+		view := swapbookPool("degraded", "Degraded", 0, 1, 2, now.Add(-3*time.Hour))
+		view.Name = "degraded-pool"
+		views = append(views, view)
+	}
+	return poolsData{Total: len(views), SandboxTotal: 2, Pools: views}
+}
+
+func swapbookQueryBool(values url.Values, name string, defaults map[string]bool) bool {
+	raw, exists := values[name]
+	if !exists || len(raw) == 0 {
+		return defaults[name]
+	}
+	value, err := strconv.ParseBool(raw[0])
+	return err == nil && value
+}
+
 func swapbookSandbox(id, state, image, resources, pod string, created time.Time) sandboxView {
 	return sandboxView{
 		ID: id, Name: id, State: state, StateLabel: sandboxStateLabel(state),
 		CreatedAtISO: created.Format(time.RFC3339), CreatedAtFallback: created.Format(time.RFC822),
 		Namespace: "opensandbox", PodName: pod, Image: image, Resources: resources,
+	}
+}
+
+func swapbookSandboxDetail(view sandboxView) sandboxDetailData {
+	return sandboxDetailData{
+		ID: view.ID, Total: 1, PoolTotal: 1, State: view.State, StateLabel: view.StateLabel,
+		CreatedAtISO: view.CreatedAtISO, CreatedAtFallback: view.CreatedAtFallback,
+		Namespace: view.Namespace, PodName: view.PodName, Image: view.Image,
+		Resources: view.Resources, Sources: "Lifecycle API + BatchSandbox", LifecycleManaged: true,
 	}
 }
 

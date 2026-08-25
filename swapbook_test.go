@@ -29,7 +29,13 @@ func TestSwapbookHandler(t *testing.T) {
 	}
 	var manifest struct {
 		Stories []struct {
-			Name string `json:"name"`
+			Name     string `json:"name"`
+			Variants []struct {
+				Name     string `json:"name"`
+				Controls []struct {
+					Name string `json:"name"`
+				} `json:"controls"`
+			} `json:"variants"`
 		} `json:"stories"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&manifest); err != nil {
@@ -37,6 +43,14 @@ func TestSwapbookHandler(t *testing.T) {
 	}
 	if len(manifest.Stories) != 6 {
 		t.Fatalf("stories = %d, want 6", len(manifest.Stories))
+	}
+	wantControls := map[string]int{"Sandbox overview": 5, "Pools": 4}
+	for _, story := range manifest.Stories {
+		if want, ok := wantControls[story.Name]; ok {
+			if len(story.Variants) != 1 || story.Variants[0].Name != "states" || len(story.Variants[0].Controls) != want {
+				t.Errorf("%s variants = %#v, want one states variant with %d controls", story.Name, story.Variants, want)
+			}
+		}
 	}
 
 	response, err = http.Get(server.URL + "/_swapbook/mocks/sandbox-details/from%20pool")
@@ -65,7 +79,9 @@ func TestSwapbookHandler(t *testing.T) {
 		want string
 	}{
 		{path: "/_swapbook/preview/pool-details/active%20sandboxes", want: "default-pool"},
-		{path: "/_swapbook/preview/sandbox-overview/mixed%20states", want: "OpenSandbox"},
+		{path: "/_swapbook/preview/sandbox-overview/states", want: "OpenSandbox"},
+		{path: "/dashboard/overview?running=false&pending=false&paused=true&failed=true&error=true", want: "sandbox-paused"},
+		{path: "/dashboard/pools?ready=false&scaling=true&atCapacity=true&degraded=true", want: "scaling-pool"},
 		{path: "/assets/styles.css", want: "OpenSandbox dashboard UI guidelines"},
 	} {
 		response, err := http.Get(server.URL + test.path)
