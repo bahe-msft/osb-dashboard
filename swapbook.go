@@ -109,7 +109,8 @@ func NewSwapbookHandler() (http.Handler, error) {
 	reg.Viewports = []adapter.Viewport{{Name: "dashboard", Width: "1440px"}, {Name: "compact", Width: "480px"}}
 
 	reg.Mock("GET /dashboard/sandboxes/sandbox-running/fragment", swapbookRender(sandbox, sandboxDetail))
-	reg.Mock("GET /dashboard/sandboxes/sandbox-pool-1/fragment", swapbookRender(sandbox, pooledDetail))
+	reg.Mock("GET /dashboard/sandboxes/sandbox-running/fragment?pool=default-pool", swapbookRender(sandbox, sandboxDetail))
+	reg.Mock("GET /dashboard/sandboxes/sandbox-pool-1/fragment?pool=default-pool", swapbookRender(sandbox, pooledDetail))
 	reg.Mock("GET /dashboard/pools/default-pool/fragment", swapbookRender(pool, capacityPoolDetail))
 
 	reg.RegisterIn("pages", "Sandbox overview",
@@ -142,7 +143,7 @@ func NewSwapbookHandler() (http.Handler, error) {
 
 	reg.RegisterIn("details", "Sandbox details",
 		swapbookPageVariant("standalone", index, pageData{SandboxImage: "python:3.12-slim", SandboxID: running.ID, Page: "detail", ContentURL: "/dashboard/sandboxes/sandbox-running/fragment"}, "GET /dashboard/sandboxes/sandbox-running/fragment", swapbookRender(sandbox, sandboxDetail)),
-		swapbookPageVariant("from pool", index, pageData{SandboxImage: "python:3.12-slim", SandboxID: pooled.ID, ParentPool: "default-pool", Page: "detail", ContentURL: "/dashboard/sandboxes/sandbox-pool-1/fragment?pool=default-pool"}, "GET /dashboard/sandboxes/sandbox-pool-1/fragment", swapbookRender(sandbox, pooledDetail)),
+		swapbookPageVariant("from pool", index, pageData{SandboxImage: "python:3.12-slim", SandboxID: pooled.ID, ParentPool: "default-pool", Page: "detail", ContentURL: "/dashboard/sandboxes/sandbox-pool-1/fragment?pool=default-pool"}, "GET /dashboard/sandboxes/sandbox-pool-1/fragment?pool=default-pool", swapbookRender(sandbox, pooledDetail)),
 	)
 
 	assetsFS, err := fs.Sub(webFiles, "web/assets")

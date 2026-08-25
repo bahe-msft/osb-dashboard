@@ -39,6 +39,27 @@ func TestSwapbookHandler(t *testing.T) {
 		t.Fatalf("stories = %d, want 6", len(manifest.Stories))
 	}
 
+	response, err = http.Get(server.URL + "/_swapbook/mocks/sandbox-details/from%20pool")
+	if err != nil {
+		t.Fatalf("GET from-pool mocks: %v", err)
+	}
+	var mocks []struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&mocks); err != nil {
+		response.Body.Close()
+		t.Fatalf("decode from-pool mocks: %v", err)
+	}
+	response.Body.Close()
+	wantMock := "/dashboard/sandboxes/sandbox-pool-1/fragment?pool=default-pool"
+	foundMock := false
+	for _, mock := range mocks {
+		foundMock = foundMock || mock.Path == wantMock
+	}
+	if !foundMock {
+		t.Errorf("from-pool mocks do not contain %q: %#v", wantMock, mocks)
+	}
+
 	for _, test := range []struct {
 		path string
 		want string
