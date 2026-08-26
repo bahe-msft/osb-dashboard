@@ -26,7 +26,10 @@ just swapbook
 Open `http://127.0.0.1:7007/__sb/`. The command builds a target with the
 `swapbook` Go build tag on `127.0.0.1:8081`, then starts the pinned Swapbook
 proxy. Override those ports with `SWAPBOOK_TARGET_ADDR` and `SWAPBOOK_PORT`.
-The adapter and fixture stories are excluded from normal dashboard builds.
+The adapter and fixture stories are excluded from normal dashboard builds. See
+[the Swapbook development workflow](docs/swapbook.md) for story authoring,
+controls, inspection scenarios, generated artifacts, and guidance on choosing
+Swapbook versus live-cluster E2E tests.
 
 To check only that every story renders:
 
