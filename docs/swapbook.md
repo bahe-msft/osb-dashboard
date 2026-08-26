@@ -161,10 +161,31 @@ workflow-run link. Download `swapbook-inspection-<run-id>` and open
 `report.html`. GitHub Actions artifacts are ZIP downloads; GitHub does not serve
 the contained HTML directly. Artifacts are retained for 14 days.
 
-Comments are skipped for forked pull requests because their workflow tokens are
-read-only. The inspection job itself still runs and uploads its artifact. The
-job requires no Kubernetes credentials or OpenSandbox cluster because every
-scenario uses fixture data.
+Comments and Pages publication are skipped for forked pull requests because
+their workflow tokens are read-only. The inspection job itself still runs and
+uploads its artifact. The job requires no Kubernetes credentials or OpenSandbox
+cluster because every scenario uses fixture data.
+
+### Inline GitHub Pages previews
+
+For same-repository pull requests, the workflow publishes the current report to
+`gh-pages` under `swapbook/pr-<number>/`, updates the PR comment with a link to
+`report.html`, and embeds one representative screenshot. Pushes to `main`
+overwrite `swapbook/main/`.
+
+Enable Pages once in repository settings with **Deploy from a branch**,
+`gh-pages`, and `/ (root)`. Until Pages is enabled, artifact downloads and the
+raw screenshot link still work, but the inline report URL will not resolve.
+
+Each push replaces the existing directory for that PR instead of adding another
+run. `.github/workflows/swapbook-pages-cleanup.yml` removes a PR directory when
+that PR closes. Its weekly/manual job also removes any closed PR directories
+missed by events and force-compacts the generated `gh-pages` branch into one
+snapshot commit so deleted binary screenshots do not remain in branch history.
+Both publication and cleanup share the `swapbook-pages` concurrency group.
+
+Only trusted same-repository PR code is published. Do not change this to
+`pull_request_target`; inspection executes code from the PR branch.
 
 ## Swapbook versus live-cluster E2E
 

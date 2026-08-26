@@ -1,0 +1,46 @@
+name: Clean up Swapbook Pages reports
+
+on:
+  pull_request:
+    types:
+      - closed
+  schedule:
+    - cron: "23 4 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: swapbook-pages
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Remove expired PR inspection reports
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Remove closed pull request report
+        if: github.event_name == 'pull_request'
+        run: ./scripts/swapbook-pages.sh remove --destination "pr-${{ github.event.pull_request.number }}"
+
+      - name: Prune closed reports and compact Pages history
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          open_prs="$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" \
+            --jq '.[].number' | paste -sd, -)"
+          ./scripts/swapbook-pages.sh prune \
+            --open-prs "$open_prs" \
+            --compact

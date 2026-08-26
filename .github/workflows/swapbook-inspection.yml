@@ -8,12 +8,13 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
+# Publishing and cleanup both update gh-pages; serialize them repository-wide.
 concurrency:
-  group: swapbook-inspection-${{ github.ref }}
-  cancel-in-progress: true
+  group: swapbook-pages
+  cancel-in-progress: false
 
 jobs:
   inspect:
@@ -24,6 +25,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -92,6 +95,26 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
+      - name: Publish inspection to GitHub Pages branch
+        id: inspection-pages
+        if: >-
+          always() &&
+          steps.inspection-summary.outputs.report != 'not generated' &&
+          (github.event_name == 'push' ||
+           (github.event_name == 'pull_request' &&
+            github.event.pull_request.head.repo.full_name == github.repository))
+        shell: bash
+        run: |
+          source_dir="$(dirname "${{ steps.inspection-summary.outputs.report }}")"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            destination="pr-${{ github.event.pull_request.number }}"
+          else
+            destination="main"
+          fi
+          ./scripts/swapbook-pages.sh publish \
+            --source "$source_dir" \
+            --destination "$destination"
+
       - name: Add inspection to job summary
         if: always()
         shell: bash
@@ -101,8 +124,11 @@ jobs:
             echo
             echo "- Result: **${{ steps.inspection-summary.outputs.passed }} passed · ${{ steps.inspection-summary.outputs.failed }} failed**"
             echo "- Inspection step: **${{ steps.inspection.outcome }}**"
+            if [[ -n "${{ steps.inspection-pages.outputs.pages-url }}" ]]; then
+              echo "- [Open inline report](${{ steps.inspection-pages.outputs.pages-url }})"
+            fi
             echo "- [Download inspection artifact](${{ steps.inspection-artifact.outputs.artifact-url }})"
-            echo "- Report entry point: \`report.html\`"
+            echo "- Report entry point in the artifact: \`report.html\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment inspection report on pull request
@@ -116,6 +142,8 @@ jobs:
           INSPECTION_FAILED: ${{ steps.inspection-summary.outputs.failed }}
           INSPECTION_OUTCOME: ${{ steps.inspection.outcome }}
           INSPECTION_ARTIFACT_URL: ${{ steps.inspection-artifact.outputs.artifact-url }}
+          INSPECTION_PAGES_URL: ${{ steps.inspection-pages.outputs.pages-url }}
+          INSPECTION_SCREENSHOT_URL: ${{ steps.inspection-pages.outputs.screenshot-url }}
         with:
           script: |
             const marker = '<!-- opensandbox-swapbook-inspection -->';
@@ -127,10 +155,13 @@ jobs:
               `**${process.env.INSPECTION_PASSED} passed · ${process.env.INSPECTION_FAILED} failed**  `,
               `Inspection step: **${process.env.INSPECTION_OUTCOME}**`,
               '',
+              `- [Open the inline inspection report](${process.env.INSPECTION_PAGES_URL})`,
               `- [Download the inspection report artifact](${process.env.INSPECTION_ARTIFACT_URL})`,
               `- [View the workflow run](${runURL})`,
               '',
-              'Download the artifact and open `report.html` to review screenshots, code assertions, semantic snapshots, rendered HTML, console logs, network logs, and source mappings.',
+              `![Swapbook inspection preview](${process.env.INSPECTION_SCREENSHOT_URL})`,
+              '',
+              'The inline report includes screenshots, code assertions, semantic snapshots, rendered HTML, console logs, network logs, and source mappings.',
             ].join('\n');
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
