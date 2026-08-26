@@ -1,0 +1,64 @@
+name: Swapbook inspection
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: swapbook-inspection-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    name: Render and inspect dashboard stories
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install Playwright CLI and Chromium
+        run: |
+          npm install --global @playwright/cli@0.1.17
+          playwright-cli install-browser chromium
+
+      - name: Prepare embedded frontend assets
+        run: |
+          ./scripts/fetch-ghostty-web.sh
+          ./scripts/fetch-ui-assets.sh
+
+      - name: Run Go tests
+        run: |
+          go test ./...
+          go test -tags swapbook ./...
+
+      - name: Run Swapbook inspection
+        run: ./scripts/swapbook-inspect.sh
+
+      - name: Upload Swapbook inspection report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swapbook-inspection-${{ github.run_id }}
+          path: .playwright/swapbook-inspection/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14

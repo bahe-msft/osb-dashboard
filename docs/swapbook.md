@@ -146,6 +146,19 @@ Do not create every possible control permutation. Add a focused scenario matrix
 covering meaningful empty, healthy, transitional, capacity, failure, and
 responsive states.
 
+## GitHub Actions
+
+`.github/workflows/swapbook-inspection.yml` runs the inspection matrix for pull
+requests, pushes to `main`, and manual dispatches. The job installs the pinned
+Playwright CLI and Chromium, runs normal and Swapbook-tagged Go tests, executes
+the inspection workflow, and uploads `.playwright/swapbook-inspection/` even
+when inspection fails.
+
+Download the `swapbook-inspection-<run-id>` artifact from the workflow run and
+open `report.html`. Artifacts are retained for 14 days. The job requires no
+Kubernetes credentials or OpenSandbox cluster because every scenario uses
+fixture data.
+
 ## Swapbook versus live-cluster E2E
 
 Use Swapbook for deterministic rendering, responsive layout, component states,
