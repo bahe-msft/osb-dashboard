@@ -23,3 +23,4 @@
 - A copy-only or backend-only change does not require the full inspection matrix unless it affects rendered structure or behavior. The normal Go tests still apply.
 - Use Swapbook for deterministic visual/state coverage. Use live-cluster E2E for Kubernetes discovery, lifecycle mutations, scheduling, authentication, snapshots, terminal WebSockets, or other infrastructure-backed behavior. Run both when a UI change spans deterministic rendering and live infrastructure.
 - Keep generated inspection artifacts under `.playwright/swapbook-inspection/`; do not commit them.
+- Read `docs/icons.md` before adding, replacing, or repurposing an icon. Keep `icons.go`, production markup/JavaScript, and the Swapbook Iconography story synchronized; `icons_test.go` must continue to pass.

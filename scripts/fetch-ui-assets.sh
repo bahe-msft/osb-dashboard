@@ -4,7 +4,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 destination="$root/web/assets/third-party/ui"
 version_file="$destination/.version"
-versions="basecoat-css=1.0.2 htmx=2.0.10 lucide=0.468.0"
+versions="basecoat-css=1.0.2 htmx=2.0.10 lucide=1.34.0"
 
 if [[ -f "$version_file" ]] \
   && [[ "$(cat "$version_file")" == "$versions" ]] \
@@ -39,8 +39,8 @@ fetch \
   71ea67185bfa8c98c39d31717c6fce5d852370fcdfd129db4543774d3145c0de
 fetch \
   lucide.min.js \
-  https://cdn.jsdelivr.net/npm/lucide@0.468.0/dist/umd/lucide.min.js \
-  3411692820cb8d47543f69496aa25fd603a358f4498046f41c508a5a3342210e
+  https://cdn.jsdelivr.net/npm/lucide@1.34.0/dist/umd/lucide.min.js \
+  381de5c07d1fa81c3430b04d66a3d710b622c1d702fadd0a0448470d9493b6f1
 
 printf '%s\n' "$versions" > "$version_file"
 printf 'Pinned UI assets ready.\n'

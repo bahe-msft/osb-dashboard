@@ -45,6 +45,10 @@ Swapbook's `mock`, `safe`, and `live` buttons control interaction behavior. The
 dashboard fixtures are intended for `mock` mode. Width buttons include the
 custom `dashboard` and `compact` viewports.
 
+The **Iconography · catalog** story renders every Lucide icon intentionally used
+by the dashboard. `icons.go` is its source of truth; see `docs/icons.md` for the
+semantic catalog and update rules.
+
 ## Render smoke check
 
 To verify that every registered story renders:

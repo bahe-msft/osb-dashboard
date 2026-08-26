@@ -34,27 +34,27 @@
         </div>
 
         <nav class="sidebar-nav" aria-label="Primary navigation">
-          <a class="nav-item" data-nav-page="sandboxes" href="/" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/" {{if or (eq .Page "list") (and (eq .Page "detail") (not .ParentPool))}}aria-current="page"{{end}}>
-            <span class="nav-item-icon"><i data-lucide="boxes"></i></span>
+          <a class="nav-item" data-nav-page="sandboxes" href="/" title="Sandboxes" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/" {{if or (eq .Page "list") (and (eq .Page "detail") (not .ParentPool))}}aria-current="page"{{end}}>
+            <span class="nav-item-icon"><i data-lucide="box"></i></span>
             <span class="nav-item-label">Sandboxes</span>
             <span id="sandbox-nav-count" class="nav-item-count">0</span>
           </a>
-          <a class="nav-item" data-nav-page="pools" href="/pools" hx-get="/dashboard/pools" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/pools" {{if or (eq .Page "pools") (eq .Page "pool-detail") .ParentPool}}aria-current="page"{{end}}>
-            <span class="nav-item-icon"><i data-lucide="package-open"></i></span>
+          <a class="nav-item" data-nav-page="pools" href="/pools" title="Pools" hx-get="/dashboard/pools" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/pools" {{if or (eq .Page "pools") (eq .Page "pool-detail") .ParentPool}}aria-current="page"{{end}}>
+            <span class="nav-item-icon"><i data-lucide="boxes"></i></span>
             <span class="nav-item-label">Pools</span>
             <span id="pool-nav-count" class="nav-item-count">0</span>
           </a>
-          <a class="nav-item" data-nav-page="snapshots" href="/snapshots" hx-get="/dashboard/snapshots" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/snapshots" {{if or (eq .Page "snapshots") (eq .Page "snapshot-detail")}}aria-current="page"{{end}}>
-            <span class="nav-item-icon"><i data-lucide="layers-3"></i></span>
+          <a class="nav-item" data-nav-page="snapshots" href="/snapshots" title="Snapshots" hx-get="/dashboard/snapshots" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/snapshots" {{if or (eq .Page "snapshots") (eq .Page "snapshot-detail")}}aria-current="page"{{end}}>
+            <span class="nav-item-icon"><i data-lucide="file-box"></i></span>
             <span class="nav-item-label">Snapshots</span>
             <span id="snapshot-nav-count" class="nav-item-count">0</span>
           </a>
-          <a class="nav-item" data-nav-page="stats" href="/stats" hx-get="/dashboard/stats" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/stats" {{if eq .Page "stats"}}aria-current="page"{{end}}>
+          <a class="nav-item" data-nav-page="stats" href="/stats" title="Stats" hx-get="/dashboard/stats" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/stats" {{if eq .Page "stats"}}aria-current="page"{{end}}>
             <span class="nav-item-icon"><i data-lucide="chart-no-axes-combined"></i></span>
             <span class="nav-item-label">Stats</span>
           </a>
           <div class="nav-menu">
-            <button id="settings-menu-toggle" class="nav-item" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="settings-submenu">
+            <button id="settings-menu-toggle" class="nav-item" type="button" title="Settings" aria-haspopup="menu" aria-expanded="false" aria-controls="settings-submenu">
               <span class="nav-item-icon"><i data-lucide="settings"></i></span>
               <span class="nav-item-label">Settings</span>
               <span class="nav-menu-chevron" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
@@ -271,7 +271,7 @@
       >
         <input name="sandboxID" type="hidden" value="">
         <header class="app-modal-header">
-          <span id="create-snapshot-modal-icon" class="app-modal-icon" aria-hidden="true"><i data-lucide="layers-3"></i></span>
+          <span id="create-snapshot-modal-icon" class="app-modal-icon" aria-hidden="true"><i data-lucide="file-box"></i></span>
           <div>
             <h2 id="create-snapshot-modal-title">Create snapshot</h2>
             <p>Save this sandbox state for later.</p>

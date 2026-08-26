@@ -112,7 +112,7 @@
               aria-label="Create snapshot"
               title="Create snapshot"
             >
-              <i data-lucide="layers-3" aria-hidden="true"></i>
+              <i data-lucide="file-box" aria-hidden="true"></i>
               Snapshot
             </button>
           {{end}}
@@ -206,14 +206,14 @@
               </div>
             </div>
             <div class="sandbox-info-property sandbox-detail-property">
-              <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="boxes"></i></span>
+              <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="square-chart-gantt"></i></span>
               <div class="sandbox-info-property-body">
                 <span class="sandbox-detail-property-label">Namespace</span>
                 <strong class="sandbox-detail-property-value copyable-value">{{.Namespace}}</strong>
               </div>
             </div>
             <div class="sandbox-info-property sandbox-detail-property">
-              <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="box"></i></span>
+              <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="container"></i></span>
               <div class="sandbox-info-property-body">
                 <span class="sandbox-detail-property-label">Pod</span>
                 <strong class="sandbox-detail-property-value copyable-value">{{.PodName}}</strong>
@@ -221,7 +221,7 @@
             </div>
             {{if .PoolRef}}
               <div class="sandbox-info-property sandbox-detail-property">
-                <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="package-open"></i></span>
+                <span class="sandbox-info-property-icon" aria-hidden="true"><i data-lucide="boxes"></i></span>
                 <div class="sandbox-info-property-body">
                   <span class="sandbox-detail-property-label">Pool</span>
                   <!-- Use native navigation so a concurrent dashboardRefresh swap cannot discard this parent-resource transition. -->

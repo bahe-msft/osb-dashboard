@@ -204,7 +204,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var modalIcon = document.querySelector('[data-create-sandbox-icon]');
     modalIcon.removeAttribute('data-state');
     modalIcon.removeAttribute('hx-swap-oob');
-    modalIcon.innerHTML = '<i data-lucide="' + (acquiring ? 'monitor-up' : (restoring ? 'archive-restore' : 'box')) + '"></i>';
+    modalIcon.innerHTML = '<i data-lucide="' + (acquiring || restoring ? 'archive-restore' : 'box') + '"></i>';
     if (window.lucide) { lucide.createIcons(); }
   }
 
@@ -294,7 +294,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var modalIcon = document.getElementById('create-snapshot-modal-icon');
     modalIcon.removeAttribute('data-state');
     modalIcon.removeAttribute('hx-swap-oob');
-    modalIcon.innerHTML = '<i data-lucide="layers-3"></i>';
+    modalIcon.innerHTML = '<i data-lucide="file-box"></i>';
     if (window.lucide) { lucide.createIcons(); }
     createSnapshotModal.classList.remove('is-closing');
     createSnapshotModal.returnValue = '';
