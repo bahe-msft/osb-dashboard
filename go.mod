@@ -3,6 +3,7 @@ module github.com/bahe-msft/osb-dashboard
 go 1.26
 
 require (
+	github.com/Aejkatappaja/swapbook v0.5.0
 	github.com/coder/websocket v1.8.14
 	k8s.io/apimachinery v0.32.4
 	k8s.io/client-go v0.32.4

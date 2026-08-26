@@ -1,3 +1,5 @@
+github.com/Aejkatappaja/swapbook v0.5.0 h1:IxGpUK+S7DHAGFXVadmj6L9LZfEQCjSj50VatPSOtis=
+github.com/Aejkatappaja/swapbook v0.5.0/go.mod h1:5LYsAcrQTtiQK6BYzHjy3ISBq+CQVI3yAkMvoj19yZ8=
 github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9g=
 github.com/coder/websocket v1.8.14/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

@@ -18,3 +18,11 @@ test: prepare-web
 # Run the recorded Microsoft Edge E2E suite against an isolated live cluster.
 e2e kubeconfig: prepare-web
   OSB_E2E_KUBECONFIG="{{kubeconfig}}" ./e2e/run.sh
+
+# Run the development-only Swapbook component workbench.
+swapbook: prepare-web
+  ./scripts/swapbook.sh
+
+# Capture every code-defined Swapbook inspection scenario and build an HTML report.
+swapbook-inspect: prepare-web
+  ./scripts/swapbook-inspect.sh

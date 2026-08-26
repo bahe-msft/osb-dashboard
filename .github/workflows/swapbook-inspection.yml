@@ -1,0 +1,188 @@
+name: Swapbook inspection
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# Publishing and cleanup both update gh-pages; serialize them repository-wide.
+concurrency:
+  group: swapbook-pages
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Render and inspect dashboard stories
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install Playwright CLI and Chromium
+        run: |
+          npm install --global @playwright/cli@0.1.17
+          playwright-cli install-browser chromium
+
+      - name: Prepare embedded frontend assets
+        run: |
+          ./scripts/fetch-ghostty-web.sh
+          ./scripts/fetch-ui-assets.sh
+
+      - name: Run Go tests
+        run: |
+          go test ./...
+          go test -tags swapbook ./...
+
+      - name: Run Swapbook inspection
+        id: inspection
+        run: ./scripts/swapbook-inspect.sh
+
+      - name: Read inspection summary
+        id: inspection-summary
+        if: always()
+        shell: bash
+        run: |
+          report="$(find .playwright/swapbook-inspection -name report.json -type f 2>/dev/null | sort | tail -n 1)"
+          if [[ -z "$report" ]]; then
+            echo "passed=unavailable" >> "$GITHUB_OUTPUT"
+            echo "failed=unavailable" >> "$GITHUB_OUTPUT"
+            echo "report=not generated" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 - "$report" "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          report_path = pathlib.Path(sys.argv[1])
+          output_path = pathlib.Path(sys.argv[2])
+          report = json.loads(report_path.read_text())
+          with output_path.open("a") as output:
+              output.write(f"passed={report['passed']}\n")
+              output.write(f"failed={report['failed']}\n")
+              output.write(f"report={report_path}\n")
+          PY
+
+      - name: Upload Swapbook inspection report
+        id: inspection-artifact
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: swapbook-inspection-${{ github.run_id }}
+          path: .playwright/swapbook-inspection/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+      - name: Publish inspection to GitHub Pages branch
+        id: inspection-pages
+        if: >-
+          always() &&
+          steps.inspection-summary.outputs.report != 'not generated' &&
+          (github.event_name == 'push' ||
+           (github.event_name == 'pull_request' &&
+            github.event.pull_request.head.repo.full_name == github.repository))
+        shell: bash
+        run: |
+          source_dir="$(dirname "${{ steps.inspection-summary.outputs.report }}")"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            destination="pr-${{ github.event.pull_request.number }}"
+          else
+            destination="main"
+          fi
+          ./scripts/swapbook-pages.sh publish \
+            --source "$source_dir" \
+            --destination "$destination"
+
+      - name: Add inspection to job summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Swapbook inspection"
+            echo
+            echo "- Result: **${{ steps.inspection-summary.outputs.passed }} passed · ${{ steps.inspection-summary.outputs.failed }} failed**"
+            echo "- Inspection step: **${{ steps.inspection.outcome }}**"
+            if [[ -n "${{ steps.inspection-pages.outputs.pages-url }}" ]]; then
+              echo "- [Open inline report](${{ steps.inspection-pages.outputs.pages-url }})"
+            fi
+            echo "- [Download inspection artifact](${{ steps.inspection-artifact.outputs.artifact-url }})"
+            echo "- Report entry point in the artifact: \`report.html\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment inspection report on pull request
+        if: >-
+          always() &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v8
+        env:
+          INSPECTION_PASSED: ${{ steps.inspection-summary.outputs.passed }}
+          INSPECTION_FAILED: ${{ steps.inspection-summary.outputs.failed }}
+          INSPECTION_OUTCOME: ${{ steps.inspection.outcome }}
+          INSPECTION_ARTIFACT_URL: ${{ steps.inspection-artifact.outputs.artifact-url }}
+          INSPECTION_PAGES_URL: ${{ steps.inspection-pages.outputs.pages-url }}
+          INSPECTION_SCREENSHOT_URL: ${{ steps.inspection-pages.outputs.screenshot-url }}
+        with:
+          script: |
+            const marker = '<!-- opensandbox-swapbook-inspection -->';
+            const runURL = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              marker,
+              '## Swapbook inspection',
+              '',
+              `**${process.env.INSPECTION_PASSED} passed · ${process.env.INSPECTION_FAILED} failed**  `,
+              `Inspection step: **${process.env.INSPECTION_OUTCOME}**`,
+              '',
+              `- [Open the inline inspection report](${process.env.INSPECTION_PAGES_URL})`,
+              `- [Download the inspection report artifact](${process.env.INSPECTION_ARTIFACT_URL})`,
+              `- [View the workflow run](${runURL})`,
+              '',
+              `![Swapbook inspection preview](${process.env.INSPECTION_SCREENSHOT_URL})`,
+              '',
+              'The inline report includes screenshots, code assertions, semantic snapshots, rendered HTML, console logs, network logs, and source mappings.',
+            ].join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const previous = comments.find(comment =>
+              comment.user.type === 'Bot' && comment.body.includes(marker)
+            );
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: previous.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

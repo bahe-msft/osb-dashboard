@@ -382,6 +382,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.body.addEventListener('htmx:afterRequest', function (event) {
     if (event.detail.elt.id === 'dashboard-content') {
       window.osbDashboardRefreshActive = false;
+      window.clearTimeout(window.osbDashboardRefreshTimer);
     }
     if (!event.detail.successful) { return; }
     if (event.detail.elt.closest('[data-view-snapshot]')) {
@@ -395,6 +396,10 @@ document.addEventListener('DOMContentLoaded', function () {
   document.body.addEventListener('htmx:beforeRequest', function (event) {
     if (event.detail.elt.id === 'dashboard-content') {
       window.osbDashboardRefreshActive = true;
+      window.clearTimeout(window.osbDashboardRefreshTimer);
+      window.osbDashboardRefreshTimer = window.setTimeout(function () {
+        window.osbDashboardRefreshActive = false;
+      }, 10 * 1000);
     }
     var action = event.detail.elt.closest('[data-sandbox-lifecycle-action]');
     if (!action) { return; }
@@ -1012,6 +1017,8 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 document.body.addEventListener('htmx:afterSwap', function () {
+  window.osbDashboardRefreshActive = false;
+  window.clearTimeout(window.osbDashboardRefreshTimer);
   if (window.osbLifecycleActionActive) { window.osbLifecycleActionActive = false; }
   if (window.lucide) { lucide.createIcons(); }
   if (window.applySandboxFilter) { window.applySandboxFilter(); }
