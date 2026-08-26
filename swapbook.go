@@ -4,6 +4,7 @@ package dashboard
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -197,6 +198,10 @@ func NewSwapbookHandler() (http.Handler, error) {
 		return nil, fmt.Errorf("load Swapbook assets: %w", err)
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /_swapbook/inspection.json", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(swapbookInspectionSpec())
+	})
 	mux.Handle(adapter.MountPath+"/", http.StripPrefix(adapter.MountPath, reg.Handler()))
 	mux.HandleFunc("GET /dashboard/overview", func(w http.ResponseWriter, request *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -225,6 +230,118 @@ func NewSwapbookHandler() (http.Handler, error) {
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assetsFS))))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "ok\n") })
 	return mux, nil
+}
+
+type swapbookInspectionDocument struct {
+	Version   int                          `json:"version"`
+	Viewports []swapbookInspectionViewport `json:"viewports"`
+	Cases     []swapbookInspectionCase     `json:"cases"`
+}
+
+type swapbookInspectionViewport struct {
+	Name   string `json:"name"`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+}
+
+type swapbookInspectionCase struct {
+	ID         string                        `json:"id"`
+	Story      string                        `json:"story"`
+	Variant    string                        `json:"variant"`
+	Args       map[string]string             `json:"args,omitempty"`
+	Viewports  []string                      `json:"viewports"`
+	Sources    []string                      `json:"sources"`
+	Assertions []swapbookInspectionAssertion `json:"assertions"`
+}
+
+type swapbookInspectionAssertion struct {
+	Type      string `json:"type"`
+	Selector  string `json:"selector"`
+	Expected  any    `json:"expected,omitempty"`
+	Attribute string `json:"attribute,omitempty"`
+}
+
+func swapbookInspectionSpec() swapbookInspectionDocument {
+	allViewports := []string{"dashboard", "compact"}
+	pageSources := []string{"web/index.html", "web/assets/styles.css", "web/assets/app.js"}
+	return swapbookInspectionDocument{
+		Version: 1,
+		Viewports: []swapbookInspectionViewport{
+			{Name: "dashboard", Width: 1440, Height: 1000},
+			{Name: "compact", Width: 480, Height: 800},
+		},
+		Cases: []swapbookInspectionCase{
+			{
+				ID: "sandbox-list-empty", Story: "sandbox-overview", Variant: "states",
+				Args:      map[string]string{"running": "false", "pending": "false", "paused": "false", "failed": "false", "error": "false"},
+				Viewports: allViewports, Sources: append(append([]string{}, pageSources...), "web/overview.html", "web/sandbox-row.html"),
+				Assertions: []swapbookInspectionAssertion{{Type: "visible", Selector: ".empty-state"}, {Type: "count", Selector: ".sandbox-row", Expected: 0}},
+			},
+			{
+				ID: "sandbox-list-mixed", Story: "sandbox-overview", Variant: "states",
+				Args:      map[string]string{"running": "true", "pending": "false", "paused": "true", "failed": "true", "error": "false"},
+				Viewports: allViewports, Sources: append(append([]string{}, pageSources...), "web/overview.html", "web/sandbox-row.html"),
+				Assertions: []swapbookInspectionAssertion{{Type: "count", Selector: ".sandbox-row", Expected: 3}, {Type: "visible", Selector: "[data-sandbox-state=paused]"}, {Type: "visible", Selector: "[data-sandbox-state=failed]"}},
+			},
+			{
+				ID: "sandbox-list-error", Story: "sandbox-overview", Variant: "states",
+				Args:      map[string]string{"running": "true", "pending": "false", "paused": "false", "failed": "false", "error": "true"},
+				Viewports: allViewports, Sources: append(append([]string{}, pageSources...), "web/overview.html"),
+				Assertions: []swapbookInspectionAssertion{{Type: "visible", Selector: ".dashboard-error"}, {Type: "text", Selector: ".dashboard-error", Expected: "lifecycle service unavailable"}},
+			},
+			{
+				ID: "pool-list-empty", Story: "pools", Variant: "states",
+				Args:      map[string]string{"ready": "false", "scaling": "false", "atCapacity": "false", "degraded": "false"},
+				Viewports: allViewports, Sources: append(append([]string{}, pageSources...), "web/pools.html"),
+				Assertions: []swapbookInspectionAssertion{{Type: "visible", Selector: ".pool-empty-state"}, {Type: "count", Selector: ".pool-row", Expected: 0}},
+			},
+			{
+				ID: "pool-list-states", Story: "pools", Variant: "states",
+				Args:      map[string]string{"ready": "true", "scaling": "true", "atCapacity": "true", "degraded": "true"},
+				Viewports: allViewports, Sources: append(append([]string{}, pageSources...), "web/pools.html"),
+				Assertions: []swapbookInspectionAssertion{{Type: "count", Selector: ".pool-row", Expected: 4}, {Type: "text", Selector: "#dashboard-content", Expected: "degraded-pool"}},
+			},
+			{
+				ID: "pool-detail-ready", Story: "pool-details", Variant: "states",
+				Args:      map[string]string{"state": "ready", "activeSandboxes": "false"},
+				Viewports: allViewports, Sources: append(append([]string{}, pageSources...), "web/pool.html", "web/sandbox-row.html"),
+				Assertions: []swapbookInspectionAssertion{{Type: "text", Selector: "#dashboard-content", Expected: "Ready"}, {Type: "count", Selector: ".pool-sandbox-row", Expected: 0}},
+			},
+			{
+				ID: "pool-detail-capacity", Story: "pool-details", Variant: "states",
+				Args:      map[string]string{"state": "atCapacity", "activeSandboxes": "true"},
+				Viewports: allViewports, Sources: append(append([]string{}, pageSources...), "web/pool.html", "web/sandbox-row.html"),
+				Assertions: []swapbookInspectionAssertion{{Type: "text", Selector: "#dashboard-content", Expected: "At capacity"}, {Type: "count", Selector: ".pool-sandbox-row", Expected: 2}, {Type: "attribute", Selector: "[data-deploy-pool]", Attribute: "disabled", Expected: ""}},
+			},
+			{
+				ID: "sandbox-detail-running", Story: "sandbox-details", Variant: "states",
+				Args:      map[string]string{"state": "running", "fromPool": "false"},
+				Viewports: allViewports, Sources: append(append([]string{}, pageSources...), "web/sandbox.html"),
+				Assertions: []swapbookInspectionAssertion{{Type: "text", Selector: ".sandbox-detail-header", Expected: "Running"}, {Type: "visible", Selector: "[data-terminal-connect]"}},
+			},
+			{
+				ID: "sandbox-detail-pooled-paused", Story: "sandbox-details", Variant: "states",
+				Args:      map[string]string{"state": "paused", "fromPool": "true"},
+				Viewports: allViewports, Sources: append(append([]string{}, pageSources...), "web/sandbox.html"),
+				Assertions: []swapbookInspectionAssertion{{Type: "text", Selector: ".sandbox-detail-header", Expected: "Paused"}, {Type: "text", Selector: "#navigation-title", Expected: "default-pool"}, {Type: "text", Selector: "[data-terminal-overlay]", Expected: "must be running"}},
+			},
+			{
+				ID: "snapshots-empty", Story: "snapshots", Variant: "empty",
+				Viewports: allViewports, Sources: append(append([]string{}, pageSources...), "web/snapshots.html"),
+				Assertions: []swapbookInspectionAssertion{{Type: "visible", Selector: ".snapshot-empty-state"}, {Type: "count", Selector: ".snapshot-row", Expected: 0}},
+			},
+			{
+				ID: "snapshots-ready", Story: "snapshots", Variant: "ready",
+				Viewports: allViewports, Sources: append(append([]string{}, pageSources...), "web/snapshots.html"),
+				Assertions: []swapbookInspectionAssertion{{Type: "count", Selector: ".snapshot-row", Expected: 1}, {Type: "text", Selector: ".snapshot-row", Expected: "before-upgrade"}},
+			},
+			{
+				ID: "cluster-stats", Story: "cluster-stats", Variant: "with nodes",
+				Viewports: allViewports, Sources: append(append([]string{}, pageSources...), "web/cluster-stats.html"),
+				Assertions: []swapbookInspectionAssertion{{Type: "count", Selector: ".cluster-stat-card", Expected: 3}, {Type: "text", Selector: "#dashboard-content", Expected: "kata-node-01"}},
+			},
+		},
+	}
 }
 
 type swapbookTemplateRenderer struct {

@@ -22,3 +22,7 @@ e2e kubeconfig: prepare-web
 # Run the development-only Swapbook component workbench.
 swapbook: prepare-web
   ./scripts/swapbook.sh
+
+# Capture every code-defined Swapbook inspection scenario and build an HTML report.
+swapbook-inspect: prepare-web
+  ./scripts/swapbook-inspect.sh

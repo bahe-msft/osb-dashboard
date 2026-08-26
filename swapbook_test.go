@@ -53,6 +53,20 @@ func TestSwapbookHandler(t *testing.T) {
 		}
 	}
 
+	response, err = http.Get(server.URL + "/_swapbook/inspection.json")
+	if err != nil {
+		t.Fatalf("GET inspection spec: %v", err)
+	}
+	var inspection swapbookInspectionDocument
+	if err := json.NewDecoder(response.Body).Decode(&inspection); err != nil {
+		response.Body.Close()
+		t.Fatalf("decode inspection spec: %v", err)
+	}
+	response.Body.Close()
+	if inspection.Version != 1 || len(inspection.Viewports) != 2 || len(inspection.Cases) != 12 {
+		t.Errorf("inspection spec version/viewports/cases = %d/%d/%d, want 1/2/12", inspection.Version, len(inspection.Viewports), len(inspection.Cases))
+	}
+
 	response, err = http.Get(server.URL + "/_swapbook/mocks/sandbox-details/states")
 	if err != nil {
 		t.Fatalf("GET sandbox-detail mocks: %v", err)

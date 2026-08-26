@@ -39,6 +39,19 @@ go run github.com/Aejkatappaja/swapbook/cmd/swapbook@v0.5.0 \
   check --target http://127.0.0.1:8081
 ```
 
+Generate the code-defined visual and semantic inspection matrix with:
+
+```bash
+just swapbook-inspect
+```
+
+Artifacts are written under `.playwright/swapbook-inspection/<run-id>/`. Open
+`report.html` to review each screenshot beside its assertions, semantic
+snapshot, rendered HTML, and relevant source files. `report.json` and
+`llm-review.md` provide the same evidence in a form suitable for automated or
+LLM-assisted review. The command exits non-zero on assertion or browser-console
+failures.
+
 ### Subpath hosting
 
 Use `--base-path` (or `OSB_DASHBOARD_BASE_PATH`) when the dashboard is exposed
