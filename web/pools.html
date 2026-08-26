@@ -56,8 +56,8 @@
             <span><strong>{{.Total}}</strong><small>total sandbox</small></span>
           </div>
           <div class="pool-specs">
-            <span title="Pool minimum and maximum"><i data-lucide="between-horizontal-start" aria-hidden="true"></i>pool min: {{.PoolMin}} max: {{.PoolMax}}</span>
-            <span title="Warm buffer minimum and maximum"><i data-lucide="flame-kindling" aria-hidden="true"></i>buffer min: {{.BufferMin}} max: {{.BufferMax}}</span>
+            <span title="Pool minimum and maximum"><i data-lucide="arrow-up-1-0" aria-hidden="true"></i>pool min: {{.PoolMin}} max: {{.PoolMax}}</span>
+            <span title="Warm buffer minimum and maximum"><i data-lucide="replace-all" aria-hidden="true"></i>buffer min: {{.BufferMin}} max: {{.BufferMax}}</span>
           </div>
           <div class="pool-runtime" title="{{.Image}} · {{.Resources}}">
             <span><i data-lucide="disc" aria-hidden="true"></i>{{.Image}}</span>
@@ -72,7 +72,7 @@
   </section>
 {{else}}
   <div class="empty-state pool-empty-state">
-    <span class="empty-state-icon" aria-hidden="true"><i data-lucide="package-open"></i></span>
+    <span class="empty-state-icon" aria-hidden="true"><i data-lucide="boxes"></i></span>
     <h2>No pools yet</h2>
     <p>Declare an OpenSandbox Pool resource to keep sandbox capacity warm.</p>
   </div>

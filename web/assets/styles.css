@@ -887,6 +887,13 @@ button.nav-item {
   overflow: visible;
 }
 
+/* Result footers must be clipped by the modal surface so the bottom corners
+ * retain the shared radius. The create form is otherwise overflow-visible for
+ * image and resource preset menus. */
+#create-sandbox-form:has(#deploy-snapshot-result:not(:empty)) {
+  overflow: hidden;
+}
+
 #create-sandbox-form[data-create-mode="pool"] {
   display: flex;
   min-height: 13.5rem;

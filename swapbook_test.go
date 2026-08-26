@@ -41,8 +41,8 @@ func TestSwapbookHandler(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&manifest); err != nil {
 		t.Fatalf("decode manifest: %v", err)
 	}
-	if len(manifest.Stories) != 6 {
-		t.Fatalf("stories = %d, want 6", len(manifest.Stories))
+	if len(manifest.Stories) != 7 {
+		t.Fatalf("stories = %d, want 7", len(manifest.Stories))
 	}
 	wantControls := map[string]int{"Sandbox overview": 5, "Pools": 4, "Pool details": 2, "Sandbox details": 2}
 	for _, story := range manifest.Stories {
@@ -63,8 +63,8 @@ func TestSwapbookHandler(t *testing.T) {
 		t.Fatalf("decode inspection spec: %v", err)
 	}
 	response.Body.Close()
-	if inspection.Version != 1 || len(inspection.Viewports) != 2 || len(inspection.Cases) != 12 {
-		t.Errorf("inspection spec version/viewports/cases = %d/%d/%d, want 1/2/12", inspection.Version, len(inspection.Viewports), len(inspection.Cases))
+	if inspection.Version != 1 || len(inspection.Viewports) != 2 || len(inspection.Cases) != 13 {
+		t.Errorf("inspection spec version/viewports/cases = %d/%d/%d, want 1/2/13", inspection.Version, len(inspection.Viewports), len(inspection.Cases))
 	}
 
 	response, err = http.Get(server.URL + "/_swapbook/mocks/sandbox-details/states")

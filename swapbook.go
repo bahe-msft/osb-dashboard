@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
@@ -123,6 +124,11 @@ func NewSwapbookHandler() (http.Handler, error) {
 		{Name: "failed", Type: "bool", Default: false},
 		{Name: "error", Type: "bool", Default: false},
 	}
+	reg.RegisterIn("foundations", "Iconography",
+		adapter.Var("catalog", swapbookIconography()),
+	)
+	reg.DocStory("Iconography", "The complete Lucide icon inventory used by production dashboard templates and JavaScript.")
+
 	reg.RegisterIn("pages", "Sandbox overview",
 		adapter.VarC("states", sandboxStateControls, func(args adapter.Args) adapter.Renderer {
 			return swapbookRender(index, pageData{
@@ -232,6 +238,27 @@ func NewSwapbookHandler() (http.Handler, error) {
 	return mux, nil
 }
 
+func swapbookIconography() adapter.Renderer {
+	var content strings.Builder
+	content.WriteString(`<!doctype html><html lang="en" data-theme="corporate"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OpenSandbox iconography</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/assets/third-party/ui/basecoat.min.css"><link rel="stylesheet" href="/assets/styles.css"><script src="/assets/third-party/ui/lucide.min.js" defer></script><style>html,body{height:auto;min-height:100%;overflow:auto}.iconography{max-width:80rem;margin:auto;padding:32px}.iconography h1{margin:0 0 8px;font-size:24px}.iconography>p{margin:0 0 28px;color:var(--os-muted)}.icon-group{margin:28px 0}.icon-group h2{margin:0 0 12px;font-size:15px;text-transform:capitalize}.icon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}.icon-card{display:grid;grid-template-columns:32px minmax(0,1fr);gap:10px;align-items:center;min-height:64px;padding:10px;border:1px solid var(--os-border);border-radius:8px;background:var(--os-panel)}.icon-card svg{width:20px;height:20px}.icon-card strong,.icon-card code,.icon-card small{display:block;overflow:hidden;text-overflow:ellipsis}.icon-card strong{font-size:12px}.icon-card code{margin-top:2px;color:var(--os-text);font:600 11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}.icon-card small{margin-top:2px;color:var(--os-muted);font-size:10px}</style></head><body><main class="iconography"><h1>Iconography</h1><p>Lucide icons intentionally used by the OpenSandbox dashboard.</p>`)
+	category := ""
+	for _, icon := range dashboardIconCatalog {
+		if icon.Category != category {
+			if category != "" {
+				content.WriteString(`</div></section>`)
+			}
+			category = icon.Category
+			content.WriteString(`<section class="icon-group"><h2>` + template.HTMLEscapeString(category) + `</h2><div class="icon-grid">`)
+		}
+		content.WriteString(`<article class="icon-card"><i data-lucide="` + template.HTMLEscapeString(icon.Icon) + `" aria-hidden="true"></i><div><strong>` + template.HTMLEscapeString(icon.Target) + `</strong><code>` + template.HTMLEscapeString(icon.Icon) + `</code><small>` + template.HTMLEscapeString(icon.Purpose) + `</small></div></article>`)
+	}
+	if category != "" {
+		content.WriteString(`</div></section>`)
+	}
+	content.WriteString(`</main><script>addEventListener('DOMContentLoaded',function(){lucide.createIcons()})</script></body></html>`)
+	return adapter.HTML(content.String())
+}
+
 type swapbookInspectionDocument struct {
 	Version   int                          `json:"version"`
 	Viewports []swapbookInspectionViewport `json:"viewports"`
@@ -271,6 +298,11 @@ func swapbookInspectionSpec() swapbookInspectionDocument {
 			{Name: "compact", Width: 480, Height: 800},
 		},
 		Cases: []swapbookInspectionCase{
+			{
+				ID: "iconography", Story: "iconography", Variant: "catalog",
+				Viewports: allViewports, Sources: []string{"icons.go", "docs/icons.md", "web/assets/styles.css"},
+				Assertions: []swapbookInspectionAssertion{{Type: "count", Selector: ".icon-card", Expected: len(dashboardIconCatalog)}, {Type: "count", Selector: ".icon-card svg", Expected: len(dashboardIconCatalog)}, {Type: "text", Selector: ".iconography", Expected: "terminal-square"}},
+			},
 			{
 				ID: "sandbox-list-empty", Story: "sandbox-overview", Variant: "states",
 				Args:      map[string]string{"running": "false", "pending": "false", "paused": "false", "failed": "false", "error": "false"},
