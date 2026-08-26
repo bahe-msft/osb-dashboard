@@ -154,10 +154,17 @@ Playwright CLI and Chromium, runs normal and Swapbook-tagged Go tests, executes
 the inspection workflow, and uploads `.playwright/swapbook-inspection/` even
 when inspection fails.
 
-Download the `swapbook-inspection-<run-id>` artifact from the workflow run and
-open `report.html`. Artifacts are retained for 14 days. The job requires no
-Kubernetes credentials or OpenSandbox cluster because every scenario uses
-fixture data.
+The workflow job summary links directly to the uploaded artifact. For
+same-repository pull requests, the workflow also creates or updates one
+**Swapbook inspection** PR comment with the pass/fail totals, artifact link, and
+workflow-run link. Download `swapbook-inspection-<run-id>` and open
+`report.html`. GitHub Actions artifacts are ZIP downloads; GitHub does not serve
+the contained HTML directly. Artifacts are retained for 14 days.
+
+Comments are skipped for forked pull requests because their workflow tokens are
+read-only. The inspection job itself still runs and uploads its artifact. The
+job requires no Kubernetes credentials or OpenSandbox cluster because every
+scenario uses fixture data.
 
 ## Swapbook versus live-cluster E2E
 
