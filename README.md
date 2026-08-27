@@ -3,6 +3,53 @@
 A lightweight Go and HTMX dashboard for discovering and operating sandboxes in
 an OpenSandbox Kubernetes cluster.
 
+## Dashboard workflow
+
+The dashboard provides one place to create, inspect, operate, and monitor
+OpenSandbox workloads:
+
+<table>
+  <thead>
+    <tr>
+      <th width="32%">Workflow</th>
+      <th width="68%">Dashboard</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td valign="top">
+        <strong>1. Find or create a sandbox</strong>
+        <p>The Sandboxes view groups workloads by lifecycle state and shows each workload's image, pod, resources, and age. Use the <strong>+</strong> action to create an on-demand sandbox, or open an existing sandbox to manage it.</p>
+      </td>
+      <td valign="top"><img src="docs/images/dashboard-sandboxes.png" alt="Sandboxes grouped by running, paused, and failed states"></td>
+    </tr>
+    <tr>
+      <td valign="top">
+        <strong>2. Acquire pre-warmed capacity from a Pool</strong>
+        <p>The Pools views show ready, allocated, and total capacity together with the image, runtime class, and scaling limits. Open a Pool and select <strong>Acquire</strong> to claim an available sandbox without waiting for a fresh workload to start.</p>
+      </td>
+      <td valign="top"><img src="docs/images/dashboard-pool.png" alt="A ready Pool with one sandbox available to acquire"></td>
+    </tr>
+    <tr>
+      <td valign="top">
+        <strong>3. Work in and manage the sandbox</strong>
+        <p>The sandbox detail view includes an in-browser terminal plus lifecycle actions. Connect to the terminal, pause or resume the sandbox, create a snapshot, or use the actions menu for additional operations. The details pane identifies the backing namespace and pod.</p>
+      </td>
+      <td valign="top"><img src="docs/images/dashboard-terminal.png" alt="A running sandbox with terminal and lifecycle controls"></td>
+    </tr>
+    <tr>
+      <td valign="top">
+        <strong>4. Preserve work and watch capacity</strong>
+        <p>Create named snapshots from running sandboxes, then restore or delete them from <strong>Snapshots</strong>. Use <strong>Stats</strong> to review scheduled sandbox count, node load, reserved CPU and memory, and recent Kubernetes events.</p>
+      </td>
+      <td valign="top"><img src="docs/images/dashboard-stats.png" alt="Cluster statistics with sandbox and node capacity"></td>
+    </tr>
+  </tbody>
+</table>
+
+The screenshots use deterministic mock data; the same UI is populated from the
+connected OpenSandbox Kubernetes cluster at runtime.
+
 ## Run locally
 
 ```bash

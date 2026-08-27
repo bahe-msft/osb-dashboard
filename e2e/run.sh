@@ -43,9 +43,6 @@ cat > "$run_dir/cli.config.json" <<EOF
 {
   "browser": {
     "browserName": "chromium",
-    "launchOptions": {
-      "channel": "msedge"
-    },
     "contextOptions": {
       "viewport": {
         "width": $viewport_width,
@@ -148,8 +145,8 @@ if [[ "$ready" -ne 1 ]]; then
 fi
 
 start_url="$base_url/?e2eRun=$run_id&e2eImage=$sandbox_image&e2eKeepSandbox=$keep_sandbox"
-printf 'Opening Microsoft Edge...\n'
-pw open "$start_url" --browser msedge --config "$run_dir/cli.config.json" >"$run_dir/browser.log" 2>&1
+printf 'Opening Chromium...\n'
+pw open "$start_url" --browser chromium --config "$run_dir/cli.config.json" >"$run_dir/browser.log" 2>&1
 browser_open=1
 pw resize "$viewport_width" "$viewport_height" >>"$run_dir/browser.log" 2>&1
 

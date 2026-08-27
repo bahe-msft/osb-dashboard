@@ -1,7 +1,7 @@
 # Live-cluster end-to-end tests
 
 The E2E suite starts a real dashboard server, connects it to an isolated
-OpenSandbox cluster, and drives Microsoft Edge through `playwright-cli`.
+OpenSandbox cluster, and drives Chromium through `playwright-cli`.
 It creates one sandbox, validates the live features, and deletes the sandbox at
 the end. A best-effort cleanup also runs when a test fails.
 
@@ -10,7 +10,7 @@ the end. A best-effort cleanup also runs when a test fails.
 - Go
 - `curl`
 - `playwright-cli`
-- Microsoft Edge
+- Chromium installed for Playwright
 - A kubeconfig with access to an isolated cluster where OpenSandbox is deployed
 
 ## Run
@@ -50,7 +50,7 @@ The following variables are optional:
 - **Terminal**: WebSocket connection, command execution, and connection
   preservation while switching between Details and Stats
 
-The suite currently contains nineteen tests split into ordered category files under
+The suite currently contains twenty tests split into ordered category files under
 `e2e/tests/`. Tests are intentionally serial because later categories operate on
 the sandbox created by the lifecycle category.
 
