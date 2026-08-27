@@ -15,7 +15,7 @@ build: prepare-web
 test: prepare-web
   go test ./...
 
-# Run the recorded Microsoft Edge E2E suite against an isolated live cluster.
+# Run the recorded Chromium E2E suite against an isolated live cluster.
 e2e kubeconfig: prepare-web
   OSB_E2E_KUBECONFIG="{{kubeconfig}}" ./e2e/run.sh
 
