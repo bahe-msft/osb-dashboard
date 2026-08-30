@@ -1,0 +1,430 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-27T04:21:30.326395+00:00",
+  "passed": 26,
+  "failed": 0,
+  "results": [
+    {
+      "id": "iconography",
+      "viewport": "dashboard",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/iconography/catalog?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js",
+      "sources": [
+        "icons.go",
+        "docs/icons.md",
+        "web/assets/styles.css"
+      ],
+      "status": "passed",
+      "screenshot": "iconography-dashboard/visual.png",
+      "semantic": "iconography-dashboard/semantic.aria.yml",
+      "html": "iconography-dashboard/rendered.html",
+      "assertionOutput": "{\"title\":\"OpenSandbox iconography\",\"url\":\"http://127.0.0.1:7008/__sb/frame/iconography/catalog?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"count\",\"selector\":\".icon-card\",\"expected\":60,\"actual\":60,\"passed\":true},{\"type\":\"count\",\"selector\":\".icon-card svg\",\"expected\":60,\"actual\":60,\"passed\":true},{\"type\":\"text\",\"selector\":\".iconography\",\"expected\":\"terminal-square\",\"actual\":\"IconographyLucide icons intentionally used by the OpenSandbox dashboard.navigationSandboxboxSandboxes navigation and sandbox resourcesPoolboxesPools navigation and Pool referencesSnapshotfile-boxSnapshots navigation and snapshot actionsCluster statisticschart-no-axes-combinedCluster statistics navigationSettingssettingsSettings navigationSearchsearchSearch affordanceExpand sidebarpanel-left-openExpand the primary sidebarCollapse sidebarpanel-left-closeCollapse the primary sidebarShow details panepanel-right-openShow the sandbox details paneHide details panepanel-right-closeHide the sandbox details paneOpen submenuchevron-rightOpen the settings submenuExpand groupchevron-downExpand groups and selector menusLive updates enabledrefresh-cwLive updates enabledLive updates pausedrefresh-cw-offLive updates pausedDark thememoonDark theme endpointLight themesunLight theme endpointactionDeploy sandboxplusCreate or deploy a sandboxClose modalxClose a modalPause sandboxpausePause a sandboxResume sandboxplayResume a sandboxMore actionsellipsis-verticalOpen more actionsDelete sandboxcircle-xDelete or remove a sandboxDelete snapshottrash-2Delete a snapshotRestore from snapshotarchive-restoreRestore a sandbox from a snapshotAcquire from Poolarchive-restoreAcquire a sandbox from a PoolstatusErrorcircle-alertError stateDestructive confirmationcircle-alertDestructive confirmationSuccessful operationcircle-checkSuccessful operationKubernetes warning eventtriangle-alertKubernetes warning eventPending operationloader-circlePending operation spinnerResource statuscircle-dotResource status propertyresourceSource sandboxboxSource sandbox referenceKubernetes namespacesquare-chart-ganttNamespace containing the workloadKubernetes PodcontainerPod backing the sandboxContainer imagediscContainer imageCPUcpuCPU usageResource allocationcpuRequested sandbox resourcesMemorymemory-stickMemory usageLoadgaugeOne-minute load metricCluster nodesserverCluster node countNo scheduled nodesserver-offNo scheduled node workloadSandbox load distributiontrending-upSandbox load distributionCreated timecalendar-clockCreation timestampLast transitionhistoryLast state transitionDiscovery sourcewaypointsKubernetes and lifecycle discovery sourcesRuntime classmonitor-cloudSandbox runtime classPool availablepackage-checkAvailable Pool capacityPool allocatedboxesAllocated Pool sandboxesPool totalboxesTotal Pool capacityPool minimum and maximumarrow-up-1-0Pool minimum and maximumWarm Pool bufferreplace-allWarm Pool bufferinterfaceDetails panelinfoDetails panelStatistics panelsquare-activityLive statistics panelEvents panellist-treeEvents panelMetadata panelbracesMetadata panelFiltered empty statelist-filterFiltered list empty stateEvents availablelist-checksEvents available empty stateEvents unavailablecircle-offEvents unavailable empty stateNo active Pool sandboxesmonitor-offNo active Pool sandboxesWeb terminalterminal-squareWeb terminal state\",\"passed\":true}]}"
+    },
+    {
+      "id": "iconography",
+      "viewport": "compact",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/iconography/catalog?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js",
+      "sources": [
+        "icons.go",
+        "docs/icons.md",
+        "web/assets/styles.css"
+      ],
+      "status": "passed",
+      "screenshot": "iconography-compact/visual.png",
+      "semantic": "iconography-compact/semantic.aria.yml",
+      "html": "iconography-compact/rendered.html",
+      "assertionOutput": "{\"title\":\"OpenSandbox iconography\",\"url\":\"http://127.0.0.1:7008/__sb/frame/iconography/catalog?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"count\",\"selector\":\".icon-card\",\"expected\":60,\"actual\":60,\"passed\":true},{\"type\":\"count\",\"selector\":\".icon-card svg\",\"expected\":60,\"actual\":60,\"passed\":true},{\"type\":\"text\",\"selector\":\".iconography\",\"expected\":\"terminal-square\",\"actual\":\"IconographyLucide icons intentionally used by the OpenSandbox dashboard.navigationSandboxboxSandboxes navigation and sandbox resourcesPoolboxesPools navigation and Pool referencesSnapshotfile-boxSnapshots navigation and snapshot actionsCluster statisticschart-no-axes-combinedCluster statistics navigationSettingssettingsSettings navigationSearchsearchSearch affordanceExpand sidebarpanel-left-openExpand the primary sidebarCollapse sidebarpanel-left-closeCollapse the primary sidebarShow details panepanel-right-openShow the sandbox details paneHide details panepanel-right-closeHide the sandbox details paneOpen submenuchevron-rightOpen the settings submenuExpand groupchevron-downExpand groups and selector menusLive updates enabledrefresh-cwLive updates enabledLive updates pausedrefresh-cw-offLive updates pausedDark thememoonDark theme endpointLight themesunLight theme endpointactionDeploy sandboxplusCreate or deploy a sandboxClose modalxClose a modalPause sandboxpausePause a sandboxResume sandboxplayResume a sandboxMore actionsellipsis-verticalOpen more actionsDelete sandboxcircle-xDelete or remove a sandboxDelete snapshottrash-2Delete a snapshotRestore from snapshotarchive-restoreRestore a sandbox from a snapshotAcquire from Poolarchive-restoreAcquire a sandbox from a PoolstatusErrorcircle-alertError stateDestructive confirmationcircle-alertDestructive confirmationSuccessful operationcircle-checkSuccessful operationKubernetes warning eventtriangle-alertKubernetes warning eventPending operationloader-circlePending operation spinnerResource statuscircle-dotResource status propertyresourceSource sandboxboxSource sandbox referenceKubernetes namespacesquare-chart-ganttNamespace containing the workloadKubernetes PodcontainerPod backing the sandboxContainer imagediscContainer imageCPUcpuCPU usageResource allocationcpuRequested sandbox resourcesMemorymemory-stickMemory usageLoadgaugeOne-minute load metricCluster nodesserverCluster node countNo scheduled nodesserver-offNo scheduled node workloadSandbox load distributiontrending-upSandbox load distributionCreated timecalendar-clockCreation timestampLast transitionhistoryLast state transitionDiscovery sourcewaypointsKubernetes and lifecycle discovery sourcesRuntime classmonitor-cloudSandbox runtime classPool availablepackage-checkAvailable Pool capacityPool allocatedboxesAllocated Pool sandboxesPool totalboxesTotal Pool capacityPool minimum and maximumarrow-up-1-0Pool minimum and maximumWarm Pool bufferreplace-allWarm Pool bufferinterfaceDetails panelinfoDetails panelStatistics panelsquare-activityLive statistics panelEvents panellist-treeEvents panelMetadata panelbracesMetadata panelFiltered empty statelist-filterFiltered list empty stateEvents availablelist-checksEvents available empty stateEvents unavailablecircle-offEvents unavailable empty stateNo active Pool sandboxesmonitor-offNo active Pool sandboxesWeb terminalterminal-squareWeb terminal state\",\"passed\":true}]}"
+    },
+    {
+      "id": "sandbox-list-empty",
+      "viewport": "dashboard",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=false&arg.failed=false&arg.paused=false&arg.pending=false&arg.running=false",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/overview.html",
+        "web/sandbox-row.html"
+      ],
+      "status": "passed",
+      "screenshot": "sandbox-list-empty-dashboard/visual.png",
+      "semantic": "sandbox-list-empty-dashboard/semantic.aria.yml",
+      "html": "sandbox-list-empty-dashboard/rendered.html",
+      "assertionOutput": "{\"title\":\"OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=false&arg.failed=false&arg.paused=false&arg.pending=false&arg.running=false\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"visible\",\"selector\":\".empty-state\",\"actual\":true,\"passed\":true},{\"type\":\"count\",\"selector\":\".sandbox-row\",\"expected\":0,\"actual\":0,\"passed\":true}]}"
+    },
+    {
+      "id": "sandbox-list-empty",
+      "viewport": "compact",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=false&arg.failed=false&arg.paused=false&arg.pending=false&arg.running=false",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/overview.html",
+        "web/sandbox-row.html"
+      ],
+      "status": "passed",
+      "screenshot": "sandbox-list-empty-compact/visual.png",
+      "semantic": "sandbox-list-empty-compact/semantic.aria.yml",
+      "html": "sandbox-list-empty-compact/rendered.html",
+      "assertionOutput": "{\"title\":\"OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=false&arg.failed=false&arg.paused=false&arg.pending=false&arg.running=false\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"visible\",\"selector\":\".empty-state\",\"actual\":true,\"passed\":true},{\"type\":\"count\",\"selector\":\".sandbox-row\",\"expected\":0,\"actual\":0,\"passed\":true}]}"
+    },
+    {
+      "id": "sandbox-list-mixed",
+      "viewport": "dashboard",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=false&arg.failed=true&arg.paused=true&arg.pending=false&arg.running=true",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/overview.html",
+        "web/sandbox-row.html"
+      ],
+      "status": "passed",
+      "screenshot": "sandbox-list-mixed-dashboard/visual.png",
+      "semantic": "sandbox-list-mixed-dashboard/semantic.aria.yml",
+      "html": "sandbox-list-mixed-dashboard/rendered.html",
+      "assertionOutput": "{\"title\":\"OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=false&arg.failed=true&arg.paused=true&arg.pending=false&arg.running=true\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"count\",\"selector\":\".sandbox-row\",\"expected\":3,\"actual\":3,\"passed\":true},{\"type\":\"visible\",\"selector\":\"[data-sandbox-state=paused]\",\"actual\":true,\"passed\":true},{\"type\":\"visible\",\"selector\":\"[data-sandbox-state=failed]\",\"actual\":true,\"passed\":true}]}"
+    },
+    {
+      "id": "sandbox-list-mixed",
+      "viewport": "compact",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=false&arg.failed=true&arg.paused=true&arg.pending=false&arg.running=true",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/overview.html",
+        "web/sandbox-row.html"
+      ],
+      "status": "passed",
+      "screenshot": "sandbox-list-mixed-compact/visual.png",
+      "semantic": "sandbox-list-mixed-compact/semantic.aria.yml",
+      "html": "sandbox-list-mixed-compact/rendered.html",
+      "assertionOutput": "{\"title\":\"OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=false&arg.failed=true&arg.paused=true&arg.pending=false&arg.running=true\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"count\",\"selector\":\".sandbox-row\",\"expected\":3,\"actual\":3,\"passed\":true},{\"type\":\"visible\",\"selector\":\"[data-sandbox-state=paused]\",\"actual\":true,\"passed\":true},{\"type\":\"visible\",\"selector\":\"[data-sandbox-state=failed]\",\"actual\":true,\"passed\":true}]}"
+    },
+    {
+      "id": "sandbox-list-error",
+      "viewport": "dashboard",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=true&arg.failed=false&arg.paused=false&arg.pending=false&arg.running=true",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/overview.html"
+      ],
+      "status": "passed",
+      "screenshot": "sandbox-list-error-dashboard/visual.png",
+      "semantic": "sandbox-list-error-dashboard/semantic.aria.yml",
+      "html": "sandbox-list-error-dashboard/rendered.html",
+      "assertionOutput": "{\"title\":\"OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=true&arg.failed=false&arg.paused=false&arg.pending=false&arg.running=true\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"visible\",\"selector\":\".dashboard-error\",\"actual\":true,\"passed\":true},{\"type\":\"text\",\"selector\":\".dashboard-error\",\"expected\":\"lifecycle service unavailable\",\"actual\":\"Some sandbox sources could not be loaded: lifecycle service unavailable\",\"passed\":true}]}"
+    },
+    {
+      "id": "sandbox-list-error",
+      "viewport": "compact",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=true&arg.failed=false&arg.paused=false&arg.pending=false&arg.running=true",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/overview.html"
+      ],
+      "status": "passed",
+      "screenshot": "sandbox-list-error-compact/visual.png",
+      "semantic": "sandbox-list-error-compact/semantic.aria.yml",
+      "html": "sandbox-list-error-compact/rendered.html",
+      "assertionOutput": "{\"title\":\"OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=true&arg.failed=false&arg.paused=false&arg.pending=false&arg.running=true\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"visible\",\"selector\":\".dashboard-error\",\"actual\":true,\"passed\":true},{\"type\":\"text\",\"selector\":\".dashboard-error\",\"expected\":\"lifecycle service unavailable\",\"actual\":\"Some sandbox sources could not be loaded: lifecycle service unavailable\",\"passed\":true}]}"
+    },
+    {
+      "id": "pool-list-empty",
+      "viewport": "dashboard",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/pools/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.atCapacity=false&arg.degraded=false&arg.ready=false&arg.scaling=false",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/pools.html"
+      ],
+      "status": "passed",
+      "screenshot": "pool-list-empty-dashboard/visual.png",
+      "semantic": "pool-list-empty-dashboard/semantic.aria.yml",
+      "html": "pool-list-empty-dashboard/rendered.html",
+      "assertionOutput": "{\"title\":\"Pools \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/pools/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.atCapacity=false&arg.degraded=false&arg.ready=false&arg.scaling=false\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"visible\",\"selector\":\".pool-empty-state\",\"actual\":true,\"passed\":true},{\"type\":\"count\",\"selector\":\".pool-row\",\"expected\":0,\"actual\":0,\"passed\":true}]}"
+    },
+    {
+      "id": "pool-list-empty",
+      "viewport": "compact",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/pools/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.atCapacity=false&arg.degraded=false&arg.ready=false&arg.scaling=false",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/pools.html"
+      ],
+      "status": "passed",
+      "screenshot": "pool-list-empty-compact/visual.png",
+      "semantic": "pool-list-empty-compact/semantic.aria.yml",
+      "html": "pool-list-empty-compact/rendered.html",
+      "assertionOutput": "{\"title\":\"Pools \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/pools/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.atCapacity=false&arg.degraded=false&arg.ready=false&arg.scaling=false\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"visible\",\"selector\":\".pool-empty-state\",\"actual\":true,\"passed\":true},{\"type\":\"count\",\"selector\":\".pool-row\",\"expected\":0,\"actual\":0,\"passed\":true}]}"
+    },
+    {
+      "id": "pool-list-states",
+      "viewport": "dashboard",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/pools/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.atCapacity=true&arg.degraded=true&arg.ready=true&arg.scaling=true",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/pools.html"
+      ],
+      "status": "passed",
+      "screenshot": "pool-list-states-dashboard/visual.png",
+      "semantic": "pool-list-states-dashboard/semantic.aria.yml",
+      "html": "pool-list-states-dashboard/rendered.html",
+      "assertionOutput": "{\"title\":\"Pools \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/pools/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.atCapacity=true&arg.degraded=true&arg.ready=true&arg.scaling=true\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"count\",\"selector\":\".pool-row\",\"expected\":4,\"actual\":4,\"passed\":true},{\"type\":\"text\",\"selector\":\"#dashboard-content\",\"expected\":\"degraded-pool\",\"actual\":\"All 4 Resource pools 4 ready-pool opensandbox 1available sandbox 0allocated sandbox 1total sandbox pool min: 1 max: 2 buffer min: 1 max: 2 python:3.12-slim 1 core / 2 GiB created 1 hour ago scaling-pool opensandbox 0available sandbox 1allocated sandbox 1total sandbox pool min: 1 max: 2 buffer min: 1 max: 2 python:3.12-slim 1 core / 2 GiB created 41 minutes ago capacity-pool opensandbox 0available sandbox 2allocated sandbox 2total sandbox pool min: 1 max: 2 buffer min: 1 max: 2 python:3.12-slim 1 core / 2 GiB created 2 hours ago degraded-pool opensandbox 0available sandbox 1allocated sandbox 2total sandbox pool min: 1 max: 2 buffer min: 1 max: 2 python:3.12-slim 1 core / 2 GiB created Aug 27, 2026, 1:19:04 AM UTC\",\"passed\":true}]}"
+    },
+    {
+      "id": "pool-list-states",
+      "viewport": "compact",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/pools/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.atCapacity=true&arg.degraded=true&arg.ready=true&arg.scaling=true",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/pools.html"
+      ],
+      "status": "passed",
+      "screenshot": "pool-list-states-compact/visual.png",
+      "semantic": "pool-list-states-compact/semantic.aria.yml",
+      "html": "pool-list-states-compact/rendered.html",
+      "assertionOutput": "{\"title\":\"Pools \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/pools/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.atCapacity=true&arg.degraded=true&arg.ready=true&arg.scaling=true\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"count\",\"selector\":\".pool-row\",\"expected\":4,\"actual\":4,\"passed\":true},{\"type\":\"text\",\"selector\":\"#dashboard-content\",\"expected\":\"degraded-pool\",\"actual\":\"All 4 Resource pools 4 ready-pool opensandbox 1available sandbox 0allocated sandbox 1total sandbox pool min: 1 max: 2 buffer min: 1 max: 2 python:3.12-slim 1 core / 2 GiB created 1 hour ago scaling-pool opensandbox 0available sandbox 1allocated sandbox 1total sandbox pool min: 1 max: 2 buffer min: 1 max: 2 python:3.12-slim 1 core / 2 GiB created 41 minutes ago capacity-pool opensandbox 0available sandbox 2allocated sandbox 2total sandbox pool min: 1 max: 2 buffer min: 1 max: 2 python:3.12-slim 1 core / 2 GiB created 2 hours ago degraded-pool opensandbox 0available sandbox 1allocated sandbox 2total sandbox pool min: 1 max: 2 buffer min: 1 max: 2 python:3.12-slim 1 core / 2 GiB created Aug 27, 2026, 1:19:04 AM UTC\",\"passed\":true}]}"
+    },
+    {
+      "id": "pool-detail-ready",
+      "viewport": "dashboard",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/pool-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.activeSandboxes=false&arg.state=ready",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/pool.html",
+        "web/sandbox-row.html"
+      ],
+      "status": "passed",
+      "screenshot": "pool-detail-ready-dashboard/visual.png",
+      "semantic": "pool-detail-ready-dashboard/semantic.aria.yml",
+      "html": "pool-detail-ready-dashboard/rendered.html",
+      "assertionOutput": "{\"title\":\"default-pool \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/pool-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.activeSandboxes=false&arg.state=ready\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"text\",\"selector\":\"#dashboard-content\",\"expected\":\"Ready\",\"actual\":\"default-pool opensandbox Acquire Status Ready Available sandbox 1 Allocated sandbox 0 Total sandbox 1 Pool range min: 1 max: 2 Warm buffer min: 1 max: 2 Container image python:3.12-slim Resources 1 core / 2 GiB Runtime class kata-vm-isolation Created 1 hour ago Active sandboxes 0 No active sandboxes Acquire a sandbox to allocate capacity from this pool.\",\"passed\":true},{\"type\":\"count\",\"selector\":\".pool-sandbox-row\",\"expected\":0,\"actual\":0,\"passed\":true}]}"
+    },
+    {
+      "id": "pool-detail-ready",
+      "viewport": "compact",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/pool-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.activeSandboxes=false&arg.state=ready",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/pool.html",
+        "web/sandbox-row.html"
+      ],
+      "status": "passed",
+      "screenshot": "pool-detail-ready-compact/visual.png",
+      "semantic": "pool-detail-ready-compact/semantic.aria.yml",
+      "html": "pool-detail-ready-compact/rendered.html",
+      "assertionOutput": "{\"title\":\"default-pool \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/pool-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.activeSandboxes=false&arg.state=ready\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"text\",\"selector\":\"#dashboard-content\",\"expected\":\"Ready\",\"actual\":\"default-pool opensandbox Acquire Status Ready Available sandbox 1 Allocated sandbox 0 Total sandbox 1 Pool range min: 1 max: 2 Warm buffer min: 1 max: 2 Container image python:3.12-slim Resources 1 core / 2 GiB Runtime class kata-vm-isolation Created 1 hour ago Active sandboxes 0 No active sandboxes Acquire a sandbox to allocate capacity from this pool.\",\"passed\":true},{\"type\":\"count\",\"selector\":\".pool-sandbox-row\",\"expected\":0,\"actual\":0,\"passed\":true}]}"
+    },
+    {
+      "id": "pool-detail-capacity",
+      "viewport": "dashboard",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/pool-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.activeSandboxes=true&arg.state=atCapacity",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/pool.html",
+        "web/sandbox-row.html"
+      ],
+      "status": "passed",
+      "screenshot": "pool-detail-capacity-dashboard/visual.png",
+      "semantic": "pool-detail-capacity-dashboard/semantic.aria.yml",
+      "html": "pool-detail-capacity-dashboard/rendered.html",
+      "assertionOutput": "{\"title\":\"default-pool \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/pool-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.activeSandboxes=true&arg.state=atCapacity\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"text\",\"selector\":\"#dashboard-content\",\"expected\":\"At capacity\",\"actual\":\"default-pool opensandbox Acquire Status At capacity Available sandbox 0 Allocated sandbox 2 Total sandbox 2 Pool range min: 1 max: 2 Warm buffer min: 1 max: 2 Container image python:3.12-slim Resources 1 core / 2 GiB Runtime class kata-vm-isolation Created 2 hours ago Active sandboxes 2 sandbox-pool-1 opensandbox / default-pool-a1b2c python:3.12-slim \u00b7 1 core / 2 GiB created 3 minutes ago sandbox-running opensandbox / sandbox-running-0 python:3.12-slim \u00b7 1 core / 2 GiB created 5 minutes ago\",\"passed\":true},{\"type\":\"count\",\"selector\":\".pool-sandbox-row\",\"expected\":2,\"actual\":2,\"passed\":true},{\"type\":\"attribute\",\"selector\":\"[data-deploy-pool]\",\"expected\":\"\",\"attribute\":\"disabled\",\"actual\":\"\",\"passed\":true}]}"
+    },
+    {
+      "id": "pool-detail-capacity",
+      "viewport": "compact",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/pool-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.activeSandboxes=true&arg.state=atCapacity",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/pool.html",
+        "web/sandbox-row.html"
+      ],
+      "status": "passed",
+      "screenshot": "pool-detail-capacity-compact/visual.png",
+      "semantic": "pool-detail-capacity-compact/semantic.aria.yml",
+      "html": "pool-detail-capacity-compact/rendered.html",
+      "assertionOutput": "{\"title\":\"default-pool \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/pool-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.activeSandboxes=true&arg.state=atCapacity\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"text\",\"selector\":\"#dashboard-content\",\"expected\":\"At capacity\",\"actual\":\"default-pool opensandbox Acquire Status At capacity Available sandbox 0 Allocated sandbox 2 Total sandbox 2 Pool range min: 1 max: 2 Warm buffer min: 1 max: 2 Container image python:3.12-slim Resources 1 core / 2 GiB Runtime class kata-vm-isolation Created 2 hours ago Active sandboxes 2 sandbox-pool-1 opensandbox / default-pool-a1b2c python:3.12-slim \u00b7 1 core / 2 GiB created 3 minutes ago sandbox-running opensandbox / sandbox-running-0 python:3.12-slim \u00b7 1 core / 2 GiB created 5 minutes ago\",\"passed\":true},{\"type\":\"count\",\"selector\":\".pool-sandbox-row\",\"expected\":2,\"actual\":2,\"passed\":true},{\"type\":\"attribute\",\"selector\":\"[data-deploy-pool]\",\"expected\":\"\",\"attribute\":\"disabled\",\"actual\":\"\",\"passed\":true}]}"
+    },
+    {
+      "id": "sandbox-detail-running",
+      "viewport": "dashboard",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/sandbox-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.fromPool=false&arg.state=running",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/sandbox.html"
+      ],
+      "status": "passed",
+      "screenshot": "sandbox-detail-running-dashboard/visual.png",
+      "semantic": "sandbox-detail-running-dashboard/semantic.aria.yml",
+      "html": "sandbox-detail-running-dashboard/rendered.html",
+      "assertionOutput": "{\"title\":\"sandbox-running \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/sandbox-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.fromPool=false&arg.state=running\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"text\",\"selector\":\".sandbox-detail-header\",\"expected\":\"Running\",\"actual\":\"Running python:3.12-slim \u00b7 1 core / 2 GiB Pause Pausing Snapshot Delete Details Details Stats Events\",\"passed\":true},{\"type\":\"visible\",\"selector\":\"[data-terminal-connect]\",\"actual\":true,\"passed\":true}]}"
+    },
+    {
+      "id": "sandbox-detail-running",
+      "viewport": "compact",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/sandbox-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.fromPool=false&arg.state=running",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/sandbox.html"
+      ],
+      "status": "passed",
+      "screenshot": "sandbox-detail-running-compact/visual.png",
+      "semantic": "sandbox-detail-running-compact/semantic.aria.yml",
+      "html": "sandbox-detail-running-compact/rendered.html",
+      "assertionOutput": "{\"title\":\"sandbox-running \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/sandbox-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.fromPool=false&arg.state=running\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"text\",\"selector\":\".sandbox-detail-header\",\"expected\":\"Running\",\"actual\":\"Running python:3.12-slim \u00b7 1 core / 2 GiB Pause Pausing Snapshot Delete Details Details Stats Events\",\"passed\":true},{\"type\":\"visible\",\"selector\":\"[data-terminal-connect]\",\"actual\":true,\"passed\":true}]}"
+    },
+    {
+      "id": "sandbox-detail-pooled-paused",
+      "viewport": "dashboard",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/sandbox-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.fromPool=true&arg.state=paused",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/sandbox.html"
+      ],
+      "status": "passed",
+      "screenshot": "sandbox-detail-pooled-paused-dashboard/visual.png",
+      "semantic": "sandbox-detail-pooled-paused-dashboard/semantic.aria.yml",
+      "html": "sandbox-detail-pooled-paused-dashboard/rendered.html",
+      "assertionOutput": "{\"title\":\"sandbox-pool-1 \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/sandbox-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.fromPool=true&arg.state=paused\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"text\",\"selector\":\".sandbox-detail-header\",\"expected\":\"Paused\",\"actual\":\"Paused python:3.12-slim \u00b7 1 core / 2 GiB Resume Resuming Delete Details Details Stats Events\",\"passed\":true},{\"type\":\"text\",\"selector\":\"#navigation-title\",\"expected\":\"default-pool\",\"actual\":\"Pools / default-pool / Sandboxes / sandbox-pool-1\",\"passed\":true},{\"type\":\"text\",\"selector\":\"[data-terminal-overlay]\",\"expected\":\"must be running\",\"actual\":\"Terminal unavailable The sandbox must be running before a terminal can be opened.\",\"passed\":true}]}"
+    },
+    {
+      "id": "sandbox-detail-pooled-paused",
+      "viewport": "compact",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/sandbox-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.fromPool=true&arg.state=paused",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/sandbox.html"
+      ],
+      "status": "passed",
+      "screenshot": "sandbox-detail-pooled-paused-compact/visual.png",
+      "semantic": "sandbox-detail-pooled-paused-compact/semantic.aria.yml",
+      "html": "sandbox-detail-pooled-paused-compact/rendered.html",
+      "assertionOutput": "{\"title\":\"sandbox-pool-1 \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/sandbox-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.fromPool=true&arg.state=paused\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"text\",\"selector\":\".sandbox-detail-header\",\"expected\":\"Paused\",\"actual\":\"Paused python:3.12-slim \u00b7 1 core / 2 GiB Resume Resuming Delete Details Details Stats Events\",\"passed\":true},{\"type\":\"text\",\"selector\":\"#navigation-title\",\"expected\":\"default-pool\",\"actual\":\"Pools / default-pool / Sandboxes / sandbox-pool-1\",\"passed\":true},{\"type\":\"text\",\"selector\":\"[data-terminal-overlay]\",\"expected\":\"must be running\",\"actual\":\"Terminal unavailable The sandbox must be running before a terminal can be opened.\",\"passed\":true}]}"
+    },
+    {
+      "id": "snapshots-empty",
+      "viewport": "dashboard",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/snapshots/empty?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/snapshots.html"
+      ],
+      "status": "passed",
+      "screenshot": "snapshots-empty-dashboard/visual.png",
+      "semantic": "snapshots-empty-dashboard/semantic.aria.yml",
+      "html": "snapshots-empty-dashboard/rendered.html",
+      "assertionOutput": "{\"title\":\"Snapshots \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/snapshots/empty?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"visible\",\"selector\":\".snapshot-empty-state\",\"actual\":true,\"passed\":true},{\"type\":\"count\",\"selector\":\".snapshot-row\",\"expected\":0,\"actual\":0,\"passed\":true}]}"
+    },
+    {
+      "id": "snapshots-empty",
+      "viewport": "compact",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/snapshots/empty?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/snapshots.html"
+      ],
+      "status": "passed",
+      "screenshot": "snapshots-empty-compact/visual.png",
+      "semantic": "snapshots-empty-compact/semantic.aria.yml",
+      "html": "snapshots-empty-compact/rendered.html",
+      "assertionOutput": "{\"title\":\"Snapshots \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/snapshots/empty?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"visible\",\"selector\":\".snapshot-empty-state\",\"actual\":true,\"passed\":true},{\"type\":\"count\",\"selector\":\".snapshot-row\",\"expected\":0,\"actual\":0,\"passed\":true}]}"
+    },
+    {
+      "id": "snapshots-ready",
+      "viewport": "dashboard",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/snapshots/ready?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/snapshots.html"
+      ],
+      "status": "passed",
+      "screenshot": "snapshots-ready-dashboard/visual.png",
+      "semantic": "snapshots-ready-dashboard/semantic.aria.yml",
+      "html": "snapshots-ready-dashboard/rendered.html",
+      "assertionOutput": "{\"title\":\"Snapshots \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/snapshots/ready?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"count\",\"selector\":\".snapshot-row\",\"expected\":1,\"actual\":1,\"passed\":true},{\"type\":\"text\",\"selector\":\".snapshot-row\",\"expected\":\"before-upgrade\",\"actual\":\"before-upgrade snapshot-ready Source sandbox-running created 32 minutes ago\",\"passed\":true}]}"
+    },
+    {
+      "id": "snapshots-ready",
+      "viewport": "compact",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/snapshots/ready?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/snapshots.html"
+      ],
+      "status": "passed",
+      "screenshot": "snapshots-ready-compact/visual.png",
+      "semantic": "snapshots-ready-compact/semantic.aria.yml",
+      "html": "snapshots-ready-compact/rendered.html",
+      "assertionOutput": "{\"title\":\"Snapshots \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/snapshots/ready?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"count\",\"selector\":\".snapshot-row\",\"expected\":1,\"actual\":1,\"passed\":true},{\"type\":\"text\",\"selector\":\".snapshot-row\",\"expected\":\"before-upgrade\",\"actual\":\"before-upgrade snapshot-ready Source sandbox-running created 32 minutes ago\",\"passed\":true}]}"
+    },
+    {
+      "id": "cluster-stats",
+      "viewport": "dashboard",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/cluster-stats/with%20nodes?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/cluster-stats.html"
+      ],
+      "status": "passed",
+      "screenshot": "cluster-stats-dashboard/visual.png",
+      "semantic": "cluster-stats-dashboard/semantic.aria.yml",
+      "html": "cluster-stats-dashboard/rendered.html",
+      "assertionOutput": "{\"title\":\"Stats \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/cluster-stats/with%20nodes?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"count\",\"selector\":\".cluster-stat-card\",\"expected\":3,\"actual\":3,\"passed\":true},{\"type\":\"text\",\"selector\":\"#dashboard-content\",\"expected\":\"kata-node-01\",\"actual\":\"Sandboxes 3 3 scheduled Nodes 2 hosting sandboxes Sandbox load 1.5 sandboxes per node Node load Sandbox requests compared with allocatable node capacity. Node Sandboxes CPU reserved Memory reserved kata-node-01 2 2 cores / 8 cores 4 GiB / 32 GiB12.5% kata-node-02 1 1 core / 8 cores 2 GiB / 32 GiB6.2% Recent sandbox events Latest Kubernetes events across active sandbox pods. No recent sandbox events Kubernetes events appear here as sandbox pods change.\",\"passed\":true}]}"
+    },
+    {
+      "id": "cluster-stats",
+      "viewport": "compact",
+      "frameURL": "http://127.0.0.1:7008/__sb/frame/cluster-stats/with%20nodes?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js",
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/cluster-stats.html"
+      ],
+      "status": "passed",
+      "screenshot": "cluster-stats-compact/visual.png",
+      "semantic": "cluster-stats-compact/semantic.aria.yml",
+      "html": "cluster-stats-compact/rendered.html",
+      "assertionOutput": "{\"title\":\"Stats \u00b7 OpenSandbox Dashboard\",\"url\":\"http://127.0.0.1:7008/__sb/frame/cluster-stats/with%20nodes?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js\",\"pageOverflow\":false,\"assertions\":[{\"type\":\"count\",\"selector\":\".cluster-stat-card\",\"expected\":3,\"actual\":3,\"passed\":true},{\"type\":\"text\",\"selector\":\"#dashboard-content\",\"expected\":\"kata-node-01\",\"actual\":\"Sandboxes 3 3 scheduled Nodes 2 hosting sandboxes Sandbox load 1.5 sandboxes per node Node load Sandbox requests compared with allocatable node capacity. Node Sandboxes CPU reserved Memory reserved kata-node-01 2 2 cores / 8 cores 4 GiB / 32 GiB12.5% kata-node-02 1 1 core / 8 cores 2 GiB / 32 GiB6.2% Recent sandbox events Latest Kubernetes events across active sandbox pods. No recent sandbox events Kubernetes events appear here as sandbox pods change.\",\"passed\":true}]}"
+    }
+  ]
+}

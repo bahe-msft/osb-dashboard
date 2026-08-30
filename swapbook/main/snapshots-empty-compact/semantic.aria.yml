@@ -1,0 +1,19 @@
+### Page
+- Page URL: http://127.0.0.1:7008/__sb/frame/snapshots/empty?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js
+- Page Title: Snapshots · OpenSandbox Dashboard
+### Snapshot
+```yaml
+- generic [ref=e64]:
+  - generic [ref=e65]:
+    - generic [ref=e66]: Snapshots
+    - button "Live updates on" [ref=e69] [cursor=pointer]
+  - main [ref=e75]:
+    - generic [ref=e76]:
+      - generic "Filter snapshots by state" [ref=e77]:
+        - button "All 0" [pressed] [ref=e78] [cursor=pointer]:
+          - text: All
+          - generic [ref=e79]: "0"
+      - generic [ref=e81]:
+        - heading "No snapshots yet" [level=2] [ref=e88]
+        - paragraph [ref=e89]: Create a snapshot from a running sandbox’s actions menu.
+```

@@ -1,0 +1,37 @@
+### Page
+- Page URL: http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=true&arg.failed=false&arg.paused=false&arg.pending=false&arg.running=true
+- Page Title: OpenSandbox Dashboard
+### Snapshot
+```yaml
+- generic [ref=e64]:
+  - generic [ref=e65]:
+    - generic [ref=e66]: Sandboxes
+    - generic [ref=e68]:
+      - button "Deploy a new sandbox" [ref=e70] [cursor=pointer]
+      - button "Live updates on" [ref=e72] [cursor=pointer]
+  - main [ref=e78]:
+    - generic [ref=e79]:
+      - generic "Filter sandboxes by state" [ref=e80]:
+        - button "All 1" [pressed] [ref=e81] [cursor=pointer]:
+          - text: All
+          - generic [ref=e82]: "1"
+        - button "running 1" [ref=e83] [cursor=pointer]:
+          - text: running
+          - generic [ref=e84]: "1"
+      - alert [ref=e85]:
+        - generic [ref=e88]: "Some sandbox sources could not be loaded: lifecycle service unavailable"
+      - region "Running 1" [ref=e90]:
+        - checkbox "Running 1" [checked]
+        - generic [ref=e93] [cursor=pointer]:
+          - strong [ref=e97]: Running
+          - generic [ref=e98]: "1"
+        - link "Open sandbox sandbox-running" [ref=e100] [cursor=pointer]:
+          - generic [ref=e102]: sandbox-running
+          - generic "opensandbox / sandbox-running-0" [ref=e105]
+          - generic "python:3.12-slim · 1 core / 2 GiB" [ref=e106]:
+            - generic [ref=e107]: python:3.12-slim
+            - generic [ref=e113]: 1 core / 2 GiB
+          - generic [ref=e118]:
+            - button "Delete sandbox sandbox-running" [ref=e119]
+            - time [ref=e124]: created 5 minutes ago
+```

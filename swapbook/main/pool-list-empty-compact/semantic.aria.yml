@@ -1,0 +1,19 @@
+### Page
+- Page URL: http://127.0.0.1:7008/__sb/frame/pools/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.atCapacity=false&arg.degraded=false&arg.ready=false&arg.scaling=false
+- Page Title: Pools · OpenSandbox Dashboard
+### Snapshot
+```yaml
+- generic [ref=e64]:
+  - generic [ref=e65]:
+    - generic [ref=e66]: Pools
+    - button "Live updates on" [ref=e69] [cursor=pointer]
+  - main [ref=e75]:
+    - generic [ref=e76]:
+      - generic "Pool count" [ref=e77]:
+        - generic [ref=e78]:
+          - text: All
+          - generic [ref=e79]: "0"
+      - generic [ref=e80]:
+        - heading "No pools yet" [level=2] [ref=e92]
+        - paragraph [ref=e93]: Declare an OpenSandbox Pool resource to keep sandbox capacity warm.
+```

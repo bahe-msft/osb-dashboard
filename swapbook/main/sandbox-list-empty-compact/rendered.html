@@ -1,0 +1,765 @@
+<html lang="en" data-base-path="" data-theme="corporate"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A lightweight dashboard for OpenSandbox">
+    <meta name="htmx-config" content="{&quot;allowEval&quot;:false}">
+    <script src="/assets/boot.js"></script>
+    <title>OpenSandbox Dashboard</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/third-party/ui/basecoat.min.css">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script src="/assets/third-party/ui/htmx.min.js" defer=""></script>
+    <script src="/assets/third-party/ui/lucide.min.js" defer=""></script>
+  <script>window.__SB={"mode":"mock","mocks":{"GET /dashboard/pools/capacity-pool/fragment":"/__sb/mock/sandbox-overview/states/9","GET /dashboard/pools/default-pool/fragment":"/__sb/mock/sandbox-overview/states/6","GET /dashboard/pools/degraded-pool/fragment":"/__sb/mock/sandbox-overview/states/10","GET /dashboard/pools/ready-pool/fragment":"/__sb/mock/sandbox-overview/states/7","GET /dashboard/pools/scaling-pool/fragment":"/__sb/mock/sandbox-overview/states/8","GET /dashboard/sandboxes/sandbox-failed/fragment":"/__sb/mock/sandbox-overview/states/3","GET /dashboard/sandboxes/sandbox-paused/fragment":"/__sb/mock/sandbox-overview/states/2","GET /dashboard/sandboxes/sandbox-pending/fragment":"/__sb/mock/sandbox-overview/states/1","GET /dashboard/sandboxes/sandbox-pool-1/fragment?pool=default-pool":"/__sb/mock/sandbox-overview/states/5","GET /dashboard/sandboxes/sandbox-running/fragment":"/__sb/mock/sandbox-overview/states/0","GET /dashboard/sandboxes/sandbox-running/fragment?pool=default-pool":"/__sb/mock/sandbox-overview/states/4"}};</script><script>// @ts-check
+// Injected into every preview frame. Detects which hypermedia library the page
+// uses and attaches a matching "probe" that normalizes its network lifecycle
+// into a common shape ({verb, path, status, target, params}) forwarded to the
+// Swapbook chrome via postMessage. Probes also apply mock/safe-mode behavior.
+//
+// Coverage: htmx is full (mock rewrite + mutation blocking + rich logging).
+// Turbo, Unpoly and Datastar (fetch-based) get normalized logging plus
+// best-effort mock rewrite / blocking, since each library intercepts requests
+// differently. New libraries are added by writing another probe.
+(function () {
+  var W = /** @type {any} */ (window);
+  var cfg = W.__SB || {};
+  var mode = cfg.mode === "safe" || cfg.mode === "live" ? cfg.mode : "mock";
+  var mocks = cfg.mocks || {};
+  var MUTATING = { POST: 1, PUT: 1, DELETE: 1, PATCH: 1 };
+
+  var seq = 0;
+  function send(event, data) {
+    try {
+      parent.postMessage({ source: "swapbook", seq: seq++, event: event, data: data || {} }, "*");
+    } catch (_) {}
+  }
+
+  function up(v) {
+    return (v || "").toUpperCase();
+  }
+
+  // flash: briefly outline the element a response was swapped into.
+  function flash(el) {
+    if (!el || !el.style) return;
+    var prev = el.style.outline, prevOff = el.style.outlineOffset;
+    el.style.transition = "outline 120ms ease";
+    el.style.outline = "2px solid #82c9e0";
+    el.style.outlineOffset = "2px";
+    setTimeout(function () {
+      el.style.outline = prev;
+      el.style.outlineOffset = prevOff;
+    }, 750);
+  }
+
+  var reqTimes = []; // FIFO of request start times, for latency
+
+  function pathOf(u) {
+    try {
+      return new URL(u, location.origin).pathname;
+    } catch (_) {
+      return String(u || "");
+    }
+  }
+
+  function eltDesc(el) {
+    if (!el || !el.tagName) return "";
+    var s = el.tagName.toLowerCase();
+    if (el.id) s += "#" + el.id;
+    var attrs = ["hx-get", "hx-post", "hx-put", "hx-delete", "hx-target", "hx-swap"];
+    attrs.forEach(function (a) {
+      if (el.getAttribute && el.getAttribute(a)) s += " " + a + '="' + el.getAttribute(a) + '"';
+    });
+    return s;
+  }
+
+  // Normalize htmx/other request parameters (FormData or plain object).
+  function paramsToObj(p) {
+    if (!p) return null;
+    var o = {};
+    if (typeof p.forEach === "function" && typeof p.entries === "function") {
+      p.forEach(function (v, k) {
+        o[k] = typeof v === "string" ? v : "[file]";
+      });
+    } else if (typeof p === "object") {
+      for (var k in p) if (Object.prototype.hasOwnProperty.call(p, k)) o[k] = p[k];
+    }
+    return Object.keys(o).length ? o : null;
+  }
+
+  // A request already rerouted to a mock endpoint must never be blocked.
+  function isMockPath(path) {
+    return (path || "").indexOf("/__sb/mock/") === 0;
+  }
+
+  // shouldBlock: outside live mode, unmocked mutating requests are cancelled.
+  function shouldBlock(verb, path) {
+    return mode !== "live" && !isMockPath(path) && MUTATING[up(verb)];
+  }
+
+  // mockFor returns the mock overlay URL for a "VERB /path", if declared.
+  function mockFor(verb, path) {
+    return mode === "mock" ? mocks[up(verb) + " " + path] : undefined;
+  }
+
+  // gate applies the mock/safe policy for a request and logs it. Returns
+  // { mock: url } to reroute, { block: true } to cancel, or {} to let through.
+  // Non-htmx probes share this so the policy lives in one place; each supplies
+  // its own reroute/cancel mechanics.
+  function gate(verb, path, lib) {
+    var url = mockFor(verb, path);
+    if (url) {
+      send("mock", { verb: verb, path: path, lib: lib });
+      return { mock: url };
+    }
+    if (shouldBlock(verb, path)) {
+      send("blocked", { verb: verb, path: path, lib: lib });
+      return { block: true };
+    }
+    return {};
+  }
+
+  // active[name] is set once a probe attaches (see wire()), so the nav guard
+  // knows which libraries are live and can defer their own links/forms to them.
+  var active = {};
+
+  // Contain navigation: a full-page component ships real <a href> / <form>
+  // that would navigate the preview iframe across the whole (proxied) app,
+  // escaping the story and losing the inspector. Outside live mode, cancel
+  // native navigations and log them. Links/forms driven by an active hypermedia
+  // library are left to that library's probe (it reroutes/blocks/logs them);
+  // the probe gates the request, so containment still holds. Live mode lets you
+  // roam the real app.
+  function libDriven(el) {
+    if (
+      el.closest("[hx-boost]") ||
+      el.hasAttribute("hx-get") || el.hasAttribute("hx-post") ||
+      el.hasAttribute("hx-put") || el.hasAttribute("hx-delete") || el.hasAttribute("hx-patch")
+    ) return true;
+    // Unpoly: any element opting into unpoly navigation.
+    if (active.unpoly && el.closest("[up-follow],[up-submit],[up-target],[up-layer],[up-nav],[up-href]")) return true;
+    // Turbo Drive owns every same-origin link/form unless explicitly opted out.
+    if (active.turbo && !el.closest('[data-turbo="false"]')) return true;
+    // Datastar wires requests via data-on-* actions, not native nav.
+    if (active.datastar && el.closest("[data-on-click],[data-on-submit],[data-on-load]")) return true;
+    return false;
+  }
+  document.addEventListener("click", function (/** @type {any} */ e) {
+    if (mode === "live" || !e.target.closest) return;
+    var a = e.target.closest("a[href]");
+    if (!a) return;
+    var href = a.getAttribute("href");
+    if (!href || href[0] === "#" || href.indexOf("javascript:") === 0 || a.target === "_blank") return;
+    if (libDriven(a)) return;
+    e.preventDefault();
+    send("nav", { path: href });
+  }, true);
+  document.addEventListener("submit", function (/** @type {any} */ e) {
+    if (mode === "live") return;
+    var f = e.target;
+    if (libDriven(f)) return;
+    e.preventDefault();
+    send("nav", { verb: up(f.method || "GET"), path: f.getAttribute("action") || "" });
+  }, true);
+
+  // ---- Probes -------------------------------------------------------------
+
+  var htmxProbe = {
+    name: "htmx",
+    detect: function () {
+      return !!W.htmx;
+    },
+    attach: function () {
+      // reroute matching requests to their mock endpoint before htmx sends them
+      document.addEventListener("htmx:configRequest", function (/** @type {any} */ e) {
+        var url = mockFor(e.detail.verb, e.detail.path);
+        if (url) {
+          send("mock", { verb: up(e.detail.verb), path: e.detail.path, lib: "htmx" });
+          e.detail.path = url;
+        }
+      });
+      // block unmocked mutations
+      document.addEventListener("htmx:beforeRequest", function (/** @type {any} */ e) {
+        var rc = e.detail.requestConfig || {};
+        if (shouldBlock(rc.verb, rc.path)) {
+          e.preventDefault();
+          send("blocked", { verb: up(rc.verb), path: rc.path, target: eltDesc(e.detail.target), params: paramsToObj(rc.parameters), lib: "htmx" });
+        }
+      });
+      // rich logging
+      ["beforeRequest", "afterRequest", "beforeSwap", "afterSwap", "responseError"].forEach(function (n) {
+        document.addEventListener("htmx:" + n, function (/** @type {any} */ e) {
+          var d = e.detail || {};
+          // a blocked request is logged once as "blocked" by the gate above;
+          // skip the duplicate beforeRequest row (and its unmatched timing push).
+          if (n === "beforeRequest" && d.requestConfig && shouldBlock(d.requestConfig.verb, d.requestConfig.path)) return;
+          var out = { lib: "htmx" };
+          if (d.requestConfig) {
+            out.verb = up(d.requestConfig.verb);
+            out.path = d.requestConfig.path;
+            out.params = paramsToObj(d.requestConfig.parameters);
+          }
+          if (d.pathInfo && d.pathInfo.requestPath) out.path = d.pathInfo.requestPath;
+          if (d.xhr) out.status = d.xhr.status;
+          if (d.target) out.target = eltDesc(d.target);
+          if (n === "beforeRequest") reqTimes.push(performance.now());
+          if (n === "afterRequest") {
+            var t0 = reqTimes.shift();
+            if (t0 != null) out.ms = Math.round(performance.now() - t0);
+          }
+          if (n === "beforeSwap" && typeof d.serverResponse === "string") {
+            out.responseBytes = d.serverResponse.length;
+            out.response = d.serverResponse.slice(0, 6000);
+          }
+          if (n === "afterSwap") flash(d.target);
+          send(n, out);
+        });
+      });
+      // out-of-band swaps update elements other than the primary target; flash
+      // and log those too, else a multi-target response looks like nothing
+      // happened outside the main swap.
+      document.addEventListener("htmx:oobAfterSwap", function (/** @type {any} */ e) {
+        var t = (e.detail && e.detail.target) || e.target;
+        flash(t);
+        send("oobSwap", { target: eltDesc(t), lib: "htmx" });
+      });
+    },
+  };
+
+  var turboProbe = {
+    name: "turbo",
+    detect: function () {
+      return !!W.Turbo;
+    },
+    attach: function () {
+      document.addEventListener("turbo:before-fetch-request", function (/** @type {any} */ e) {
+        var d = e.detail || {};
+        var verb = up((d.fetchOptions && d.fetchOptions.method) || "GET");
+        var path = pathOf(d.url);
+        var g = gate(verb, path, "turbo");
+        if (g.mock) {
+          try { d.url = new URL(g.mock, location.origin); } catch (_) {}
+        } else if (g.block) {
+          if (e.cancelable) e.preventDefault();
+          return;
+        }
+        send("beforeRequest", { verb: verb, path: path, lib: "turbo" });
+      });
+      document.addEventListener("turbo:before-fetch-response", function (/** @type {any} */ e) {
+        var r = e.detail && e.detail.fetchResponse;
+        send("afterRequest", { status: r && r.response && r.response.status, lib: "turbo" });
+      });
+    },
+  };
+
+  var unpolyProbe = {
+    name: "unpoly",
+    detect: function () {
+      return !!(W.up && W.up.on);
+    },
+    attach: function () {
+      W.up.on("up:request:load", function (event) {
+        var req = event.request || {};
+        var verb = up(req.method || "GET");
+        var path = pathOf(req.url);
+        var g = gate(verb, path, "unpoly");
+        if (g.mock) {
+          try { req.url = g.mock; } catch (_) {}
+        } else if (g.block) {
+          if (event.preventDefault) event.preventDefault();
+          return;
+        }
+        send("beforeRequest", { verb: verb, path: path, lib: "unpoly" });
+      });
+      W.up.on("up:request:loaded", function (event) {
+        var resp = event.response || {};
+        send("afterRequest", { status: resp.status, lib: "unpoly" });
+      });
+    },
+  };
+
+  // Datastar and other fetch-based libraries: wrap fetch. htmx uses XHR, so
+  // this does not double-count htmx traffic.
+  var datastarProbe = {
+    name: "datastar",
+    detect: function () {
+      return !!(W.Datastar || document.querySelector("[data-signals],[data-on-load],[data-star]"));
+    },
+    attach: function () {
+      var orig = window.fetch;
+      if (!orig) return;
+      window.fetch = function (/** @type {any} */ input, init) {
+        var raw = typeof input === "string" ? input : (input && input.url) || "";
+        var verb = up((init && init.method) || (input && input.method) || "GET");
+        var path = pathOf(raw);
+        var g = gate(verb, path, "datastar");
+        if (g.mock) {
+          send("beforeRequest", { verb: verb, path: path, lib: "datastar" });
+          return orig(g.mock, init);
+        }
+        if (g.block) return Promise.reject(new Error("blocked by swapbook (" + mode + " mode)"));
+        send("beforeRequest", { verb: verb, path: path, lib: "datastar" });
+        return orig(input, init).then(function (r) {
+          send("afterRequest", { status: r.status, lib: "datastar" });
+          return r;
+        });
+      };
+    },
+  };
+
+  // ---- a11y lint (dependency-free; axe-core is a future drop-in) ----------
+  function runA11y() {
+    var v = [];
+    document.querySelectorAll("img:not([alt])").forEach(function (el) {
+      v.push({ rule: "img-alt", msg: "image has no alt text", target: eltDesc(el) });
+    });
+    document.querySelectorAll("button, a[href]").forEach(function (el) {
+      var name = (el.textContent || "").trim() || el.getAttribute("aria-label") || el.getAttribute("title");
+      if (!name) v.push({ rule: "name", msg: el.tagName.toLowerCase() + " has no accessible label", target: eltDesc(el) });
+    });
+    document.querySelectorAll("input, select, textarea").forEach(function (el) {
+      var t = (el.getAttribute("type") || "").toLowerCase();
+      if (t === "hidden" || t === "submit" || t === "button") return;
+      var labelled =
+        el.getAttribute("aria-label") ||
+        el.getAttribute("aria-labelledby") ||
+        el.getAttribute("title") ||
+        el.closest("label") ||
+        (el.id && document.querySelector('label[for="' + (window.CSS && CSS.escape ? CSS.escape(el.id) : el.id) + '"]'));
+      if (!labelled) v.push({ rule: "label", msg: "form control has no label (placeholder is not a label)", target: eltDesc(el) });
+    });
+    var seen = {};
+    document.querySelectorAll("[id]").forEach(function (el) {
+      if (seen[el.id]) v.push({ rule: "dup-id", msg: 'duplicate id "' + el.id + '"', target: eltDesc(el) });
+      seen[el.id] = true;
+    });
+    send("a11y", { violations: v });
+  }
+  // report content height so the chrome can auto-size autodocs mini-previews
+  function reportHeight() {
+    try {
+      // body.scrollHeight is the CONTENT height; documentElement.scrollHeight
+      // would report at least the iframe's own viewport (self-referential),
+      // leaving dead space below short fragments.
+      var b = document.body;
+      if (b) send("height", { h: b.scrollHeight + 16 }); // +margin buffer
+    } catch (_) {}
+  }
+
+  // re-lint + re-measure whenever the DOM changes, regardless of which library
+  // performed the swap (htmx/Turbo/Unpoly/Datastar all mutate the DOM).
+  var changeT;
+  function onContentChange() {
+    clearTimeout(changeT);
+    changeT = setTimeout(function () {
+      runA11y();
+      reportHeight();
+    }, 120);
+  }
+
+  // ---- SSE / WebSocket lens -----------------------------------------------
+  // Long-lived connections have no discrete request to trace, so wrap the
+  // EventSource and WebSocket constructors and stream their lifecycle (open,
+  // each message, send, close, error) to the chrome. Observational only: the
+  // connection is never rerouted or blocked, since it is not a mock-able request.
+  function streamMsg(kind, path, dir, data) {
+    var s = typeof data === "string" ? data : "[binary]";
+    send("streamMsg", { kind: kind, path: path, dir: dir, data: s.slice(0, 2000), bytes: s.length });
+  }
+  // wrap replaces a stream constructor with one that logs open + each message +
+  // error, keeps prototype/static constants intact, and runs extra() for the
+  // per-kind pieces (SSE close-method override; WS close event + send wrap).
+  function wrap(Orig, kind, statics, extra) {
+    var Wrapped = function (url, arg) {
+      var inst = arg !== undefined ? new Orig(url, arg) : new Orig(url);
+      var path = pathOf(url);
+      send("streamOpen", { kind: kind, path: path });
+      inst.addEventListener("message", function (ev) { streamMsg(kind, path, "recv", ev.data); });
+      inst.addEventListener("error", function () { send("streamError", { kind: kind, path: path }); });
+      extra(inst, path);
+      return inst;
+    };
+    Wrapped.prototype = Orig.prototype;
+    statics.forEach(function (k) { Wrapped[k] = Orig[k]; });
+    return Wrapped;
+  }
+  function wireStreams() {
+    if (W.EventSource) {
+      W.EventSource = wrap(W.EventSource, "SSE", ["CONNECTING", "OPEN", "CLOSED"], function (es, path) {
+        var close = es.close.bind(es);
+        es.close = function () { send("streamClose", { kind: "SSE", path: path }); return close(); };
+      });
+    }
+    if (W.WebSocket) {
+      W.WebSocket = wrap(W.WebSocket, "WS", ["CONNECTING", "OPEN", "CLOSING", "CLOSED"], function (ws, path) {
+        ws.addEventListener("close", function (ev) { send("streamClose", { kind: "WS", path: path, code: ev && ev.code }); });
+        var origSend = ws.send.bind(ws);
+        ws.send = function (data) { streamMsg("WS", path, "send", data); return origSend(data); };
+      });
+    }
+  }
+
+  // ---- Play: scripted interactions + assertions ---------------------------
+  // The chrome posts { source: "swapbook-cmd", cmd: "play", steps } into this
+  // frame; we run each step against the DOM and report the outcome back. Steps
+  // are declarative (click / type / expect-text / expect-visible / wait), so no
+  // eval and the vocabulary is shared with the adapters.
+  function q(sel) {
+    try { return document.querySelector(sel); } catch (_) { return null; }
+  }
+  // waitFor polls for target up to ms; resolves with the element once it exists
+  // and (if given) pred(el) holds, else null on timeout.
+  function waitFor(sel, ms, pred) {
+    return new Promise(function (resolve) {
+      var t0 = performance.now();
+      (function poll() {
+        var el = q(sel);
+        if (el && (!pred || pred(el))) return resolve(el);
+        if (performance.now() - t0 > ms) return resolve(null);
+        setTimeout(poll, 50);
+      })();
+    });
+  }
+  async function runStep(s) {
+    if (s.action === "click") {
+      var el = await waitFor(s.target, 2000);
+      if (!el) return "no element at " + s.target;
+      el.click();
+      return "";
+    }
+    if (s.action === "type") {
+      var input = await waitFor(s.target, 2000);
+      if (!input) return "no element at " + s.target;
+      input.value = s.value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      return "";
+    }
+    if (s.action === "wait") {
+      return (await waitFor(s.target, 3000)) ? "" : "timed out waiting for " + s.target;
+    }
+    if (s.action === "expect-visible") {
+      var vis = await waitFor(s.target, 3000);
+      return vis && vis.offsetParent !== null ? "" : (vis ? "not visible" : "not found") + ": " + s.target;
+    }
+    if (s.action === "expect-text") {
+      if (s.text == null) return "expect-text step has no text";
+      var found = await waitFor(s.target, 3000, function (el) {
+        return (el.textContent || "").indexOf(s.text) !== -1;
+      });
+      return found ? "" : "expected " + s.target + ' to contain "' + s.text + '"';
+    }
+    return "unknown action: " + s.action;
+  }
+  var playing = false;
+  async function runPlay(steps) {
+    playing = true;
+    var passed = 0;
+    try {
+      for (var i = 0; i < steps.length; i++) {
+        var detail = "";
+        try {
+          detail = await runStep(steps[i]);
+        } catch (e) {
+          detail = String((e && e.message) || e);
+        }
+        var ok = detail === "";
+        send("play:result", { index: i, action: steps[i].action, target: steps[i].target, ok: ok, detail: detail });
+        if (ok) passed++;
+        else break; // stop at the first failure, like a test
+      }
+      send("play:done", { passed: passed, total: steps.length, ok: passed === steps.length });
+    } finally {
+      playing = false;
+    }
+  }
+  window.addEventListener("message", function (e) {
+    var m = e.data;
+    // ignore a re-entrant run while one is already in flight
+    if (m && m.source === "swapbook-cmd" && m.cmd === "play" && !playing) runPlay(m.steps || []);
+  });
+
+  // ---- Wire up ------------------------------------------------------------
+
+  var PROBES = [htmxProbe, turboProbe, unpolyProbe, datastarProbe];
+
+  // Wire probes after DOMContentLoaded: deferred library scripts (e.g. a
+  // <script src="htmx.js" defer>) have executed by then, so detection sees
+  // W.htmx/Turbo/up. Request events fire on later user interaction, so
+  // attaching now never misses anything.
+  function wire() {
+    var attached = [];
+    PROBES.forEach(function (p) {
+      if (p.detect()) {
+        active[p.name] = true;
+        p.attach();
+        attached.push(p.name);
+      }
+    });
+    wireStreams();
+    send("frame:ready", { mode: mode, libs: attached });
+    onContentChange();
+    if (document.body && window.MutationObserver) {
+      new MutationObserver(onContentChange).observe(document.body, { childList: true, subtree: true });
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", wire);
+  } else {
+    wire();
+  }
+})();
+</script><style>.htmx-indicator{opacity:0;visibility: hidden} .htmx-request .htmx-indicator, .htmx-request.htmx-indicator{opacity:1;visibility: visible;transition: opacity 200ms ease-in}</style></head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="workspace">
+          <button class="workspace-mark" id="workspace-mark" type="button" aria-label="OpenSandbox home">
+            OS
+            <span class="workspace-mark-expand" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="panel-left-open" aria-hidden="true" class="lucide lucide-panel-left-open"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="m14 9 3 3-3 3"></path></svg></span>
+          </button>
+          <span class="workspace-name">OpenSandbox</span>
+          <span class="workspace-actions">
+            <button class="sidebar-button" type="button" aria-label="Search" title="Search" disabled="">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="search" aria-hidden="true" class="lucide lucide-search"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg>
+            </button>
+            <button class="sidebar-toggle sidebar-button" id="sidebar-toggle" type="button" aria-label="Collapse sidebar">
+              <span class="icon-collapse"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="panel-left-close" aria-hidden="true" class="lucide lucide-panel-left-close"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="m16 15-3-3 3-3"></path></svg></span>
+              <span class="icon-expand"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="panel-left-open" aria-hidden="true" class="lucide lucide-panel-left-open"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="m14 9 3 3-3 3"></path></svg></span>
+            </button>
+          </span>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Primary navigation">
+          <a class="nav-item" data-nav-page="sandboxes" href="/" title="Sandboxes" hx-get="/dashboard/overview" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/" aria-current="page">
+            <span class="nav-item-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="box" aria-hidden="true" class="lucide lucide-box"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg></span>
+            <span class="nav-item-label">Sandboxes</span>
+            <span id="sandbox-nav-count" class="nav-item-count">0</span>
+          </a>
+          <a class="nav-item" data-nav-page="pools" href="/pools" title="Pools" hx-get="/dashboard/pools" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/pools">
+            <span class="nav-item-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="boxes" aria-hidden="true" class="lucide lucide-boxes"><path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"></path><path d="m7 16.5-4.74-2.85"></path><path d="m7 16.5 5-3"></path><path d="M7 16.5v5.17"></path><path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"></path><path d="m17 16.5-5-3"></path><path d="m17 16.5 4.74-2.85"></path><path d="M17 16.5v5.17"></path><path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"></path><path d="M12 8 7.26 5.15"></path><path d="m12 8 4.74-2.85"></path><path d="M12 13.5V8"></path></svg></span>
+            <span class="nav-item-label">Pools</span>
+            <span id="pool-nav-count" class="nav-item-count">1</span>
+          </a>
+          <a class="nav-item" data-nav-page="snapshots" href="/snapshots" title="Snapshots" hx-get="/dashboard/snapshots" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/snapshots">
+            <span class="nav-item-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="file-box" aria-hidden="true" class="lucide lucide-file-box"><path d="M14 2v5a1 1 0 001 1h5"></path><path d="M14.692 22H18a2 2 0 002-2V8a2.4 2.4 0 00-.706-1.706l-3.588-3.588A2.4 2.4 0 0014 2H6a2 2 0 00-2 2v3.804"></path><path d="M2.264 13.752 7 16.5l4.737-2.748"></path><path d="M2.995 13.014A2 2 0 002 14.744v3.516a2 2 0 00.996 1.73l3 1.74a2 2 0 002.008 0l3-1.74A2 2 0 0012 18.26v-3.517a2 2 0 00-.995-1.73l-3-1.742a2 2 0 00-1.892-.064z"></path><path d="M7 16.5V22"></path></svg></span>
+            <span class="nav-item-label">Snapshots</span>
+            <span id="snapshot-nav-count" class="nav-item-count">0</span>
+          </a>
+          <a class="nav-item" data-nav-page="stats" href="/stats" title="Stats" hx-get="/dashboard/stats" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="/stats">
+            <span class="nav-item-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chart-no-axes-combined" aria-hidden="true" class="lucide lucide-chart-no-axes-combined"><path d="M12 16v5"></path><path d="M16 14.639V21"></path><path d="M20 10.656V21"></path><path d="m22 3-8.646 8.646a.5.5 0 0 1-.708 0L9.354 8.354a.5.5 0 0 0-.707 0L2 15"></path><path d="M4 18.463V21"></path><path d="M8 14.656V21"></path></svg></span>
+            <span class="nav-item-label">Stats</span>
+          </a>
+          <div class="nav-menu">
+            <button id="settings-menu-toggle" class="nav-item" type="button" title="Settings" aria-haspopup="menu" aria-expanded="false" aria-controls="settings-submenu">
+              <span class="nav-item-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="settings" aria-hidden="true" class="lucide lucide-settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
+              <span class="nav-item-label">Settings</span>
+              <span class="nav-menu-chevron" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chevron-right" aria-hidden="true" class="lucide lucide-chevron-right"><path d="m9 18 6-6-6-6"></path></svg></span>
+            </button>
+            <div id="settings-submenu" class="nav-submenu" role="menu" aria-label="Settings">
+              <button id="theme-switch" class="nav-subitem" type="button" role="switch" aria-checked="false" aria-label="Toggle dark mode" title="Toggle dark mode">
+                <span class="nav-item-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="moon" aria-hidden="true" class="lucide lucide-moon"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"></path></svg></span>
+                <span class="theme-switch-track" aria-hidden="true"><span></span></span>
+                <span class="nav-item-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="sun" aria-hidden="true" class="lucide lucide-sun"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg></span>
+              </button>
+            </div>
+          </div>
+        </nav>
+      </aside>
+
+      <div class="main-frame">
+        <section class="content-panel">
+          <header class="topbar">
+            <div id="navigation-title" class="topbar-breadcrumb">
+  <span class="topbar-breadcrumb-current">Sandboxes</span>
+</div>
+            <div class="toolbar">
+              <span id="page-toolbar-action" class="toolbar-action">
+  <button id="deploy-sandbox-button" class="icon-button sandbox-create-control" type="button" aria-label="Deploy a new sandbox" title="Deploy a new sandbox" data-open-create-modal="">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="plus" aria-hidden="true" class="lucide lucide-plus"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>
+  </button>
+</span>
+              <button id="live-updates-toggle" class="icon-button" data-live-state="enabled" type="button" aria-label="Live updates on" title="Live updates on"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="refresh-cw" aria-hidden="true" class="lucide lucide-refresh-cw"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg></button>
+            </div>
+          </header>
+
+          <main>
+            
+<section id="dashboard-content" data-page="list" hx-get="/dashboard/overview" hx-trigger="dashboardRefresh" hx-swap="outerHTML" aria-live="polite">
+
+
+
+
+
+
+<div class="filter-tabs" aria-label="Filter sandboxes by state">
+  <button class="filter-pill" type="button" data-state-filter="all" data-active="true" aria-pressed="true">
+    All <span class="count">&nbsp;0</span>
+  </button>
+  
+</div>
+
+
+
+<div class="state-groups">
+  
+
+  
+    <div class="empty-state sandbox-create-control" role="button" tabindex="0" aria-labelledby="empty-state-title" title="Deploy a new sandbox" data-open-create-modal="">
+      <span class="empty-state-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="box" aria-hidden="true" class="lucide lucide-box"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg></span>
+      <h2 id="empty-state-title">Deploy a new sandbox</h2>
+      <p>Start an isolated workload in this cluster.</p>
+    </div>
+  
+</div>
+</section>
+
+          </main>
+
+          <noscript>
+            <div class="noscript-notice">JavaScript is required for live dashboard updates.</div>
+          </noscript>
+        </section>
+      </div>
+    </div>
+
+    <dialog id="create-sandbox-modal" class="app-modal" data-size="lg" aria-labelledby="create-sandbox-modal-title">
+      <form id="create-sandbox-form" class="app-modal-surface" method="post" action="/dashboard/sandboxes" autocomplete="off" data-1p-ignore="" data-lpignore="true" data-form-type="other" hx-post="/dashboard/sandboxes" hx-target="#dashboard-content" hx-swap="outerHTML" hx-indicator="this" hx-disabled-elt="#create-sandbox-form input, #create-sandbox-form button">
+        <input name="snapshotId" type="hidden" value="" style="">
+        <input name="snapshotName" type="hidden" value="" style="">
+        <input name="poolRef" type="hidden" value="" style="">
+        <header class="app-modal-header">
+          <span id="create-sandbox-modal-icon" class="app-modal-icon" data-create-sandbox-icon="" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="box" aria-hidden="true" class="lucide lucide-box"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg></span>
+          <div>
+            <h2 id="create-sandbox-modal-title">Create sandbox</h2>
+          </div>
+          <button class="app-modal-close" type="button" data-create-modal-close="" aria-label="Close create sandbox form">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="x" aria-hidden="true" class="lucide lucide-x"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </header>
+        <div id="deploy-snapshot-result"></div>
+        <div class="app-modal-body create-sandbox-fields">
+          <div id="create-sandbox-error" class="app-form-error" role="alert" hidden=""></div>
+          <div class="app-form-field" data-sandbox-image-field="">
+            <label for="sandbox-image">Container image</label>
+            <span class="preset-input-control">
+              <input id="sandbox-image" name="image" type="text" value="python:3.12-slim" required="" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="" data-lpignore="true" style="">
+              <button id="image-presets-toggle" class="preset-menu-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="image-presets-menu" aria-label="Choose a preset image" title="Choose a preset image">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="disc" aria-hidden="true" class="lucide lucide-disc"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+              </button>
+              <span id="image-presets-menu" class="preset-menu" role="menu" aria-label="Preset container images" hidden="">
+                <button type="button" role="menuitem" data-preset-value="python:3.12-slim">
+                  <span>Python</span><code>python:3.12-slim</code>
+                </button>
+                <button type="button" role="menuitem" data-preset-value="node:22-slim">
+                  <span>Node.js</span><code>node:22-slim</code>
+                </button>
+                <button type="button" role="menuitem" data-preset-value="ubuntu:24.04">
+                  <span>Ubuntu</span><code>ubuntu:24.04</code>
+                </button>
+                <button type="button" role="menuitem" data-preset-value="alpine:3.20">
+                  <span>Alpine</span><code>alpine:3.20</code>
+                </button>
+              </span>
+            </span>
+          </div>
+          <div class="app-form-field" data-snapshot-source-field="" hidden="">
+            <span>Snapshot</span>
+            <output id="sandbox-snapshot-source" class="app-form-static-value copyable-value"></output>
+          </div>
+          <p class="pool-acquire-prompt" data-pool-source-field="" hidden="">
+            Acquiring from <output id="sandbox-pool-source" class="copyable-value"></output> ?
+          </p>
+          <div class="app-form-field" data-resource-preset-field="">
+            <label for="resource-preset-label">Resources</label>
+            <span class="preset-input-control">
+              <input id="resource-preset-label" type="text" value="1 core / 2 GiB" readonly="" tabindex="-1" autocomplete="off" data-1p-ignore="" data-lpignore="true" style="">
+              <input name="resourcePreset" type="hidden" value="1core-2gib" style="">
+              <button id="resource-presets-toggle" class="preset-menu-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="resource-presets-menu" aria-label="Choose a resource preset" title="Choose a resource preset">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="cpu" aria-hidden="true" class="lucide lucide-cpu"><path d="M12 20v2"></path><path d="M12 2v2"></path><path d="M17 20v2"></path><path d="M17 2v2"></path><path d="M2 12h2"></path><path d="M2 17h2"></path><path d="M2 7h2"></path><path d="M20 12h2"></path><path d="M20 17h2"></path><path d="M20 7h2"></path><path d="M7 20v2"></path><path d="M7 2v2"></path><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="8" y="8" width="8" height="8" rx="1"></rect></svg>
+              </button>
+              <span id="resource-presets-menu" class="preset-menu" role="menu" aria-label="Resource presets" hidden="">
+                <button type="button" role="menuitem" data-preset-value="1core-2gib" data-preset-label="1 core / 2 GiB">
+                  <span>1 core</span><code>2 GiB memory</code>
+                </button>
+                <button type="button" role="menuitem" data-preset-value="2core-4gib" data-preset-label="2 cores / 4 GiB">
+                  <span>2 cores</span><code>4 GiB memory</code>
+                </button>
+                <button type="button" role="menuitem" data-preset-value="4core-8gib" data-preset-label="4 cores / 8 GiB">
+                  <span>4 cores</span><code>8 GiB memory</code>
+                </button>
+                <button type="button" role="menuitem" data-preset-value="8core-16gib" data-preset-label="8 cores / 16 GiB">
+                  <span>8 cores</span><code>16 GiB memory</code>
+                </button>
+              </span>
+            </span>
+          </div>
+        </div>
+        <footer class="app-modal-footer create-sandbox-actions">
+          <button class="app-modal-button" data-variant="secondary" type="button" data-create-modal-close="">Cancel</button>
+          <button class="app-modal-button create-submit-button" data-variant="primary" type="submit">
+            <span class="create-button-label">Create</span>
+            <span class="create-button-loading" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="loader-circle" aria-hidden="true" class="lucide lucide-loader-circle"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg><span data-create-loading-label="">Creating</span></span>
+          </button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="create-snapshot-modal" class="app-modal" aria-labelledby="create-snapshot-modal-title">
+      <form id="create-snapshot-form" class="app-modal-surface" method="post" action="/dashboard/snapshots" autocomplete="off" data-1p-ignore="" data-lpignore="true" data-form-type="other" hx-post="/dashboard/snapshots" hx-target="#create-snapshot-result" hx-swap="innerHTML" hx-indicator="this" hx-disabled-elt="#create-snapshot-form input, #create-snapshot-form button">
+        <input name="sandboxID" type="hidden" value="" style="">
+        <header class="app-modal-header">
+          <span id="create-snapshot-modal-icon" class="app-modal-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="file-box" aria-hidden="true" class="lucide lucide-file-box"><path d="M14 2v5a1 1 0 001 1h5"></path><path d="M14.692 22H18a2 2 0 002-2V8a2.4 2.4 0 00-.706-1.706l-3.588-3.588A2.4 2.4 0 0014 2H6a2 2 0 00-2 2v3.804"></path><path d="M2.264 13.752 7 16.5l4.737-2.748"></path><path d="M2.995 13.014A2 2 0 002 14.744v3.516a2 2 0 00.996 1.73l3 1.74a2 2 0 002.008 0l3-1.74A2 2 0 0012 18.26v-3.517a2 2 0 00-.995-1.73l-3-1.742a2 2 0 00-1.892-.064z"></path><path d="M7 16.5V22"></path></svg></span>
+          <div>
+            <h2 id="create-snapshot-modal-title">Create snapshot</h2>
+            <p>Save this sandbox state for later.</p>
+          </div>
+          <button class="app-modal-close" type="button" data-snapshot-modal-close="" aria-label="Close create snapshot form">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="x" aria-hidden="true" class="lucide lucide-x"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </header>
+        <div id="create-snapshot-result"></div>
+        <div class="app-modal-body snapshot-create-fields">
+          <div id="create-snapshot-error" class="app-form-error" role="alert" hidden=""></div>
+          <div class="app-form-field">
+            <span>Source sandbox</span>
+            <output id="snapshot-source-sandbox" class="app-form-static-value copyable-value"></output>
+          </div>
+          <div class="app-form-field">
+            <label for="snapshot-name">Name <span class="optional-label">Optional</span></label>
+            <input id="snapshot-name" name="name" type="text" placeholder="checkpoint-before-changes" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="" data-lpignore="true" data-form-type="other" style="">
+          </div>
+        </div>
+        <footer class="app-modal-footer snapshot-create-actions">
+          <button class="app-modal-button" data-variant="secondary" type="button" data-snapshot-modal-close="">Cancel</button>
+          <button class="app-modal-button create-submit-button" data-variant="primary" type="submit">
+            <span class="create-button-label">Create snapshot</span>
+            <span class="create-button-loading" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="loader-circle" aria-hidden="true" class="lucide lucide-loader-circle"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>Creating</span>
+          </button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="confirmation-modal" class="app-modal" aria-labelledby="confirmation-modal-title" aria-describedby="confirmation-modal-message">
+      <form class="app-modal-surface" method="dialog">
+        <header class="app-modal-header">
+          <span class="app-modal-icon" data-variant="danger" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="circle-alert" aria-hidden="true" class="lucide lucide-circle-alert"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg></span>
+          <div>
+            <h2 id="confirmation-modal-title">Confirm action</h2>
+            <p id="confirmation-modal-message"></p>
+          </div>
+          <button class="app-modal-close" type="button" value="cancel" data-modal-close="" aria-label="Close confirmation">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="x" aria-hidden="true" class="lucide lucide-x"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </header>
+        <footer class="app-modal-footer">
+          <button class="app-modal-button" data-variant="secondary" type="button" value="cancel" data-modal-close="">Cancel</button>
+          <button id="confirmation-modal-submit" class="app-modal-button" data-variant="danger" type="button" value="confirm" data-modal-close="">Confirm</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <script src="/assets/app.js" defer=""></script>
+  
+
+</body></html>
