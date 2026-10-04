@@ -1,0 +1,4 @@
+### Result
+8. [GET] http://127.0.0.1:7008/__sb/mock/cluster-stats/with%20nodes/11 => [200] OK
+
+Note: 8 static requests not shown, run with --static option to see them.

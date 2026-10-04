@@ -1,0 +1,102 @@
+### Page
+- Page URL: http://127.0.0.1:7008/__sb/frame/pool-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.activeSandboxes=true&arg.state=atCapacity
+- Page Title: default-pool · OpenSandbox Dashboard
+### Snapshot
+```yaml
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]:
+      - button "OpenSandbox home" [ref=e5] [cursor=pointer]: OS
+      - generic [ref=e6]: OpenSandbox
+      - generic [ref=e7]:
+        - button "Search" [disabled] [ref=e8]
+        - button "Collapse sidebar" [ref=e12] [cursor=pointer]
+    - navigation "Primary navigation" [ref=e17]:
+      - link "Sandboxes 2" [ref=e18] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e23]: Sandboxes
+        - generic [ref=e24]: "2"
+      - link "Pools 1" [ref=e25] [cursor=pointer]:
+        - /url: /pools
+        - generic [ref=e37]: Pools
+        - generic [ref=e38]: "1"
+      - link "Snapshots 0" [ref=e39] [cursor=pointer]:
+        - /url: /snapshots
+        - generic [ref=e46]: Snapshots
+        - generic [ref=e47]: "0"
+      - link "Stats" [ref=e48] [cursor=pointer]:
+        - /url: /stats
+      - button "Settings" [ref=e54] [cursor=pointer]
+  - generic [ref=e64]:
+    - generic [ref=e65]:
+      - generic [ref=e66]:
+        - link "Pools" [ref=e67] [cursor=pointer]:
+          - /url: /pools
+        - generic [ref=e68]: /
+        - generic "default-pool" [ref=e69]
+      - button "Live updates on" [ref=e71] [cursor=pointer]
+    - main [ref=e77]:
+      - generic [ref=e78]:
+        - generic [ref=e79]:
+          - generic [ref=e82]:
+            - heading "default-pool" [level=1] [ref=e83]
+            - paragraph [ref=e84]: opensandbox
+          - button "Acquire sandbox from pool default-pool" [disabled] [ref=e86]: Acquire
+        - generic [ref=e92]:
+          - region "Pool details" [ref=e93]:
+            - generic [ref=e94]:
+              - generic [ref=e100]:
+                - generic [ref=e101]: Status
+                - strong [ref=e102]: At capacity
+              - generic [ref=e110]:
+                - generic [ref=e111]: Available sandbox
+                - strong [ref=e112]: "0"
+              - generic [ref=e125]:
+                - generic [ref=e126]: Allocated sandbox
+                - strong [ref=e127]: "2"
+              - generic [ref=e140]:
+                - generic [ref=e141]: Total sandbox
+                - strong [ref=e142]: "2"
+              - generic [ref=e149]:
+                - generic [ref=e150]: Pool range
+                - strong [ref=e151]: "min: 1 max: 2"
+              - generic [ref=e164]:
+                - generic [ref=e165]: Warm buffer
+                - strong [ref=e166]: "min: 1 max: 2"
+              - generic [ref=e172]:
+                - generic [ref=e173]: Container image
+                - strong [ref=e174]: python:3.12-slim
+              - generic [ref=e180]:
+                - generic [ref=e181]: Resources
+                - strong [ref=e182]: 1 core / 2 GiB
+              - generic [ref=e188]:
+                - generic [ref=e189]: Runtime class
+                - strong [ref=e190]: kata-vm-isolation
+              - generic [ref=e197]:
+                - generic [ref=e198]: Created
+                - strong [ref=e199]:
+                  - time [ref=e200]: 2 hours ago
+          - region [ref=e201]:
+            - generic [ref=e202]:
+              - heading "Active sandboxes" [level=2] [ref=e203]
+              - generic [ref=e204]: "2"
+            - generic [ref=e206]:
+              - link "Open sandbox sandbox-pool-1" [ref=e207] [cursor=pointer]:
+                - /url: /sandboxes/sandbox-pool-1?pool=default-pool
+                - generic [ref=e209]: sandbox-pool-1
+                - generic "opensandbox / default-pool-a1b2c" [ref=e212]
+                - generic "python:3.12-slim · 1 core / 2 GiB" [ref=e213]:
+                  - generic [ref=e214]: python:3.12-slim
+                  - generic [ref=e219]: ·
+                  - generic [ref=e220]: 1 core / 2 GiB
+                - time [ref=e226]: created 3 minutes ago
+              - link "Open sandbox sandbox-running" [ref=e227] [cursor=pointer]:
+                - /url: /sandboxes/sandbox-running?pool=default-pool
+                - generic [ref=e229]: sandbox-running
+                - generic "opensandbox / sandbox-running-0" [ref=e232]
+                - generic "python:3.12-slim · 1 core / 2 GiB" [ref=e233]:
+                  - generic [ref=e234]: python:3.12-slim
+                  - generic [ref=e239]: ·
+                  - generic [ref=e240]: 1 core / 2 GiB
+                - time [ref=e246]: created 5 minutes ago
+```

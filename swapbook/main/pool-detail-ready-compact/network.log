@@ -1,0 +1,4 @@
+### Result
+8. [GET] http://127.0.0.1:7008/dashboard/swapbook/pool-detail?activeSandboxes=false&state=ready => [200] OK
+
+Note: 8 static requests not shown, run with --static option to see them.

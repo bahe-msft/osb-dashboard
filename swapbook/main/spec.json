@@ -1,0 +1,434 @@
+{
+  "version": 1,
+  "viewports": [
+    {
+      "name": "dashboard",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "name": "compact",
+      "width": 480,
+      "height": 800
+    }
+  ],
+  "cases": [
+    {
+      "id": "iconography",
+      "story": "iconography",
+      "variant": "catalog",
+      "viewports": [
+        "dashboard",
+        "compact"
+      ],
+      "sources": [
+        "icons.go",
+        "docs/icons.md",
+        "web/assets/styles.css"
+      ],
+      "assertions": [
+        {
+          "type": "count",
+          "selector": ".icon-card",
+          "expected": 60
+        },
+        {
+          "type": "count",
+          "selector": ".icon-card svg",
+          "expected": 60
+        },
+        {
+          "type": "text",
+          "selector": ".iconography",
+          "expected": "terminal-square"
+        }
+      ]
+    },
+    {
+      "id": "sandbox-list-empty",
+      "story": "sandbox-overview",
+      "variant": "states",
+      "args": {
+        "error": "false",
+        "failed": "false",
+        "paused": "false",
+        "pending": "false",
+        "running": "false"
+      },
+      "viewports": [
+        "dashboard",
+        "compact"
+      ],
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/overview.html",
+        "web/sandbox-row.html"
+      ],
+      "assertions": [
+        {
+          "type": "visible",
+          "selector": ".empty-state"
+        },
+        {
+          "type": "count",
+          "selector": ".sandbox-row",
+          "expected": 0
+        }
+      ]
+    },
+    {
+      "id": "sandbox-list-mixed",
+      "story": "sandbox-overview",
+      "variant": "states",
+      "args": {
+        "error": "false",
+        "failed": "true",
+        "paused": "true",
+        "pending": "false",
+        "running": "true"
+      },
+      "viewports": [
+        "dashboard",
+        "compact"
+      ],
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/overview.html",
+        "web/sandbox-row.html"
+      ],
+      "assertions": [
+        {
+          "type": "count",
+          "selector": ".sandbox-row",
+          "expected": 3
+        },
+        {
+          "type": "visible",
+          "selector": "[data-sandbox-state=paused]"
+        },
+        {
+          "type": "visible",
+          "selector": "[data-sandbox-state=failed]"
+        }
+      ]
+    },
+    {
+      "id": "sandbox-list-error",
+      "story": "sandbox-overview",
+      "variant": "states",
+      "args": {
+        "error": "true",
+        "failed": "false",
+        "paused": "false",
+        "pending": "false",
+        "running": "true"
+      },
+      "viewports": [
+        "dashboard",
+        "compact"
+      ],
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/overview.html"
+      ],
+      "assertions": [
+        {
+          "type": "visible",
+          "selector": ".dashboard-error"
+        },
+        {
+          "type": "text",
+          "selector": ".dashboard-error",
+          "expected": "lifecycle service unavailable"
+        }
+      ]
+    },
+    {
+      "id": "pool-list-empty",
+      "story": "pools",
+      "variant": "states",
+      "args": {
+        "atCapacity": "false",
+        "degraded": "false",
+        "ready": "false",
+        "scaling": "false"
+      },
+      "viewports": [
+        "dashboard",
+        "compact"
+      ],
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/pools.html"
+      ],
+      "assertions": [
+        {
+          "type": "visible",
+          "selector": ".pool-empty-state"
+        },
+        {
+          "type": "count",
+          "selector": ".pool-row",
+          "expected": 0
+        }
+      ]
+    },
+    {
+      "id": "pool-list-states",
+      "story": "pools",
+      "variant": "states",
+      "args": {
+        "atCapacity": "true",
+        "degraded": "true",
+        "ready": "true",
+        "scaling": "true"
+      },
+      "viewports": [
+        "dashboard",
+        "compact"
+      ],
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/pools.html"
+      ],
+      "assertions": [
+        {
+          "type": "count",
+          "selector": ".pool-row",
+          "expected": 4
+        },
+        {
+          "type": "text",
+          "selector": "#dashboard-content",
+          "expected": "degraded-pool"
+        }
+      ]
+    },
+    {
+      "id": "pool-detail-ready",
+      "story": "pool-details",
+      "variant": "states",
+      "args": {
+        "activeSandboxes": "false",
+        "state": "ready"
+      },
+      "viewports": [
+        "dashboard",
+        "compact"
+      ],
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/pool.html",
+        "web/sandbox-row.html"
+      ],
+      "assertions": [
+        {
+          "type": "text",
+          "selector": "#dashboard-content",
+          "expected": "Ready"
+        },
+        {
+          "type": "count",
+          "selector": ".pool-sandbox-row",
+          "expected": 0
+        }
+      ]
+    },
+    {
+      "id": "pool-detail-capacity",
+      "story": "pool-details",
+      "variant": "states",
+      "args": {
+        "activeSandboxes": "true",
+        "state": "atCapacity"
+      },
+      "viewports": [
+        "dashboard",
+        "compact"
+      ],
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/pool.html",
+        "web/sandbox-row.html"
+      ],
+      "assertions": [
+        {
+          "type": "text",
+          "selector": "#dashboard-content",
+          "expected": "At capacity"
+        },
+        {
+          "type": "count",
+          "selector": ".pool-sandbox-row",
+          "expected": 2
+        },
+        {
+          "type": "attribute",
+          "selector": "[data-deploy-pool]",
+          "expected": "",
+          "attribute": "disabled"
+        }
+      ]
+    },
+    {
+      "id": "sandbox-detail-running",
+      "story": "sandbox-details",
+      "variant": "states",
+      "args": {
+        "fromPool": "false",
+        "state": "running"
+      },
+      "viewports": [
+        "dashboard",
+        "compact"
+      ],
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/sandbox.html"
+      ],
+      "assertions": [
+        {
+          "type": "text",
+          "selector": ".sandbox-detail-header",
+          "expected": "Running"
+        },
+        {
+          "type": "visible",
+          "selector": "[data-terminal-connect]"
+        }
+      ]
+    },
+    {
+      "id": "sandbox-detail-pooled-paused",
+      "story": "sandbox-details",
+      "variant": "states",
+      "args": {
+        "fromPool": "true",
+        "state": "paused"
+      },
+      "viewports": [
+        "dashboard",
+        "compact"
+      ],
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/sandbox.html"
+      ],
+      "assertions": [
+        {
+          "type": "text",
+          "selector": ".sandbox-detail-header",
+          "expected": "Paused"
+        },
+        {
+          "type": "text",
+          "selector": "#navigation-title",
+          "expected": "default-pool"
+        },
+        {
+          "type": "text",
+          "selector": "[data-terminal-overlay]",
+          "expected": "must be running"
+        }
+      ]
+    },
+    {
+      "id": "snapshots-empty",
+      "story": "snapshots",
+      "variant": "empty",
+      "viewports": [
+        "dashboard",
+        "compact"
+      ],
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/snapshots.html"
+      ],
+      "assertions": [
+        {
+          "type": "visible",
+          "selector": ".snapshot-empty-state"
+        },
+        {
+          "type": "count",
+          "selector": ".snapshot-row",
+          "expected": 0
+        }
+      ]
+    },
+    {
+      "id": "snapshots-ready",
+      "story": "snapshots",
+      "variant": "ready",
+      "viewports": [
+        "dashboard",
+        "compact"
+      ],
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/snapshots.html"
+      ],
+      "assertions": [
+        {
+          "type": "count",
+          "selector": ".snapshot-row",
+          "expected": 1
+        },
+        {
+          "type": "text",
+          "selector": ".snapshot-row",
+          "expected": "before-upgrade"
+        }
+      ]
+    },
+    {
+      "id": "cluster-stats",
+      "story": "cluster-stats",
+      "variant": "with nodes",
+      "viewports": [
+        "dashboard",
+        "compact"
+      ],
+      "sources": [
+        "web/index.html",
+        "web/assets/styles.css",
+        "web/assets/app.js",
+        "web/cluster-stats.html"
+      ],
+      "assertions": [
+        {
+          "type": "count",
+          "selector": ".cluster-stat-card",
+          "expected": 3
+        },
+        {
+          "type": "text",
+          "selector": "#dashboard-content",
+          "expected": "kata-node-01"
+        }
+      ]
+    }
+  ]
+}
