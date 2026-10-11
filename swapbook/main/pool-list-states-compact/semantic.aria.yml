@@ -1,0 +1,105 @@
+### Page
+- Page URL: http://127.0.0.1:7008/__sb/frame/pools/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.atCapacity=true&arg.degraded=true&arg.ready=true&arg.scaling=true
+- Page Title: Pools · OpenSandbox Dashboard
+### Snapshot
+```yaml
+- generic [ref=e64]:
+  - generic [ref=e65]:
+    - generic [ref=e66]: Pools
+    - button "Live updates on" [ref=e69] [cursor=pointer]
+  - main [ref=e75]:
+    - generic [ref=e76]:
+      - generic "Pool count" [ref=e77]:
+        - generic [ref=e78]:
+          - text: All
+          - generic [ref=e79]: "4"
+      - region "Resource pools 4" [ref=e80]:
+        - generic [ref=e82]:
+          - strong [ref=e83]: Resource pools
+          - generic [ref=e84]: "4"
+        - generic [ref=e85]:
+          - link "Open pool ready-pool" [ref=e86] [cursor=pointer]:
+            - /url: /pools/ready-pool
+            - generic [ref=e88]:
+              - strong [ref=e89]: ready-pool
+              - generic [ref=e90]: opensandbox
+            - generic "1 available sandbox, 0 allocated sandbox, 1 total sandbox" [ref=e91]:
+              - generic [ref=e92]:
+                - strong [ref=e93]: "1"
+                - generic [ref=e94]: available sandbox
+              - generic [ref=e95]:
+                - strong [ref=e96]: "0"
+                - generic [ref=e97]: allocated sandbox
+              - generic [ref=e98]:
+                - strong [ref=e99]: "1"
+                - generic [ref=e100]: total sandbox
+            - generic [ref=e101]:
+              - generic "Pool minimum and maximum" [ref=e102]: "pool min: 1 max: 2"
+              - generic "Warm buffer minimum and maximum" [ref=e107]: "buffer min: 1 max: 2"
+            - generic "python:3.12-slim · 1 core / 2 GiB" [ref=e118]:
+              - generic [ref=e119]: python:3.12-slim
+              - generic [ref=e123]: 1 core / 2 GiB
+          - link "Open pool scaling-pool" [ref=e129] [cursor=pointer]:
+            - /url: /pools/scaling-pool
+            - generic [ref=e131]:
+              - strong [ref=e132]: scaling-pool
+              - generic [ref=e133]: opensandbox
+            - generic "0 available sandbox, 1 allocated sandbox, 1 total sandbox" [ref=e134]:
+              - generic [ref=e135]:
+                - strong [ref=e136]: "0"
+                - generic [ref=e137]: available sandbox
+              - generic [ref=e138]:
+                - strong [ref=e139]: "1"
+                - generic [ref=e140]: allocated sandbox
+              - generic [ref=e141]:
+                - strong [ref=e142]: "1"
+                - generic [ref=e143]: total sandbox
+            - generic [ref=e144]:
+              - generic "Pool minimum and maximum" [ref=e145]: "pool min: 1 max: 2"
+              - generic "Warm buffer minimum and maximum" [ref=e150]: "buffer min: 1 max: 2"
+            - generic "python:3.12-slim · 1 core / 2 GiB" [ref=e161]:
+              - generic [ref=e162]: python:3.12-slim
+              - generic [ref=e166]: 1 core / 2 GiB
+          - link "Open pool capacity-pool" [ref=e172] [cursor=pointer]:
+            - /url: /pools/capacity-pool
+            - generic [ref=e174]:
+              - strong [ref=e175]: capacity-pool
+              - generic [ref=e176]: opensandbox
+            - generic "0 available sandbox, 2 allocated sandbox, 2 total sandbox" [ref=e177]:
+              - generic [ref=e178]:
+                - strong [ref=e179]: "0"
+                - generic [ref=e180]: available sandbox
+              - generic [ref=e181]:
+                - strong [ref=e182]: "2"
+                - generic [ref=e183]: allocated sandbox
+              - generic [ref=e184]:
+                - strong [ref=e185]: "2"
+                - generic [ref=e186]: total sandbox
+            - generic [ref=e187]:
+              - generic "Pool minimum and maximum" [ref=e188]: "pool min: 1 max: 2"
+              - generic "Warm buffer minimum and maximum" [ref=e193]: "buffer min: 1 max: 2"
+            - generic "python:3.12-slim · 1 core / 2 GiB" [ref=e204]:
+              - generic [ref=e205]: python:3.12-slim
+              - generic [ref=e209]: 1 core / 2 GiB
+          - link "Open pool degraded-pool" [ref=e215] [cursor=pointer]:
+            - /url: /pools/degraded-pool
+            - generic [ref=e217]:
+              - strong [ref=e218]: degraded-pool
+              - generic [ref=e219]: opensandbox
+            - generic "0 available sandbox, 1 allocated sandbox, 2 total sandbox" [ref=e220]:
+              - generic [ref=e221]:
+                - strong [ref=e222]: "0"
+                - generic [ref=e223]: available sandbox
+              - generic [ref=e224]:
+                - strong [ref=e225]: "1"
+                - generic [ref=e226]: allocated sandbox
+              - generic [ref=e227]:
+                - strong [ref=e228]: "2"
+                - generic [ref=e229]: total sandbox
+            - generic [ref=e230]:
+              - generic "Pool minimum and maximum" [ref=e231]: "pool min: 1 max: 2"
+              - generic "Warm buffer minimum and maximum" [ref=e236]: "buffer min: 1 max: 2"
+            - generic "python:3.12-slim · 1 core / 2 GiB" [ref=e247]:
+              - generic [ref=e248]: python:3.12-slim
+              - generic [ref=e252]: 1 core / 2 GiB
+```

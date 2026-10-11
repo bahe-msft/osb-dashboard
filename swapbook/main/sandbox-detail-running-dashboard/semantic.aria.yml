@@ -1,0 +1,79 @@
+### Page
+- Page URL: http://127.0.0.1:7008/__sb/frame/sandbox-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.fromPool=false&arg.state=running
+- Page Title: sandbox-running · OpenSandbox Dashboard
+### Snapshot
+```yaml
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]:
+      - button "OpenSandbox home" [ref=e5] [cursor=pointer]: OS
+      - generic [ref=e6]: OpenSandbox
+      - generic [ref=e7]:
+        - button "Search" [disabled] [ref=e8]
+        - button "Collapse sidebar" [ref=e12] [cursor=pointer]
+    - navigation "Primary navigation" [ref=e17]:
+      - link "Sandboxes 1" [ref=e18] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e23]: Sandboxes
+        - generic [ref=e24]: "1"
+      - link "Pools 1" [ref=e25] [cursor=pointer]:
+        - /url: /pools
+        - generic [ref=e37]: Pools
+        - generic [ref=e38]: "1"
+      - link "Snapshots 0" [ref=e39] [cursor=pointer]:
+        - /url: /snapshots
+        - generic [ref=e46]: Snapshots
+        - generic [ref=e47]: "0"
+      - link "Stats" [ref=e48] [cursor=pointer]:
+        - /url: /stats
+      - button "Settings" [ref=e54] [cursor=pointer]
+  - generic [ref=e64]:
+    - generic [ref=e65]:
+      - generic [ref=e66]:
+        - link "Sandboxes" [ref=e67] [cursor=pointer]:
+          - /url: /
+        - generic [ref=e68]: /
+        - generic "sandbox-running" [ref=e69]
+      - generic [ref=e70]:
+        - button "Hide details pane" [ref=e72] [cursor=pointer]
+        - button "Live updates on" [ref=e76] [cursor=pointer]
+    - main [ref=e82]:
+      - generic [ref=e83]:
+        - generic [ref=e84]:
+          - generic [ref=e85]:
+            - generic [ref=e88]:
+              - heading "Running" [level=1] [ref=e89]
+              - paragraph [ref=e90]:
+                - generic "python:3.12-slim" [ref=e95]
+                - generic [ref=e96]: ·
+                - generic [ref=e97]: 1 core / 2 GiB
+            - generic [ref=e101]:
+              - button "Pause sandbox" [ref=e102] [cursor=pointer]:
+                - generic [ref=e106]: Pause
+              - button "Create snapshot" [ref=e107] [cursor=pointer]: Snapshot
+              - button "More sandbox actions" [ref=e114] [cursor=pointer]
+          - button "Details" [ref=e121] [cursor=pointer]
+        - generic [ref=e128]:
+          - region "Sandbox terminal" [ref=e129]:
+            - generic [ref=e130]:
+              - generic "Sandbox terminal" [ref=e131]
+              - generic [ref=e132]:
+                - strong [ref=e136]: Terminal disconnected
+                - button "Connect" [ref=e137] [cursor=pointer]
+          - complementary [ref=e138]:
+            - region "Details" [ref=e139]:
+              - generic [ref=e140]:
+                - generic [ref=e147]:
+                  - generic [ref=e148]: Created
+                  - strong [ref=e149]:
+                    - time [ref=e150]: 6 minutes ago
+                - generic [ref=e155]:
+                  - generic [ref=e156]: Namespace
+                  - strong [ref=e157]: opensandbox
+                - generic [ref=e164]:
+                  - generic [ref=e165]: Pod
+                  - strong [ref=e166]: sandbox-running-0
+                - generic [ref=e176]:
+                  - generic [ref=e177]: Discovered via
+                  - strong [ref=e178]: Lifecycle API + BatchSandbox
+```

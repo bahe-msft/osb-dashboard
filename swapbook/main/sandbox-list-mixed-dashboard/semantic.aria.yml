@@ -1,0 +1,97 @@
+### Page
+- Page URL: http://127.0.0.1:7008/__sb/frame/sandbox-overview/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.error=false&arg.failed=true&arg.paused=true&arg.pending=false&arg.running=true
+- Page Title: OpenSandbox Dashboard
+### Snapshot
+```yaml
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]:
+      - button "OpenSandbox home" [ref=e5] [cursor=pointer]: OS
+      - generic [ref=e6]: OpenSandbox
+      - generic [ref=e7]:
+        - button "Search" [disabled] [ref=e8]
+        - button "Collapse sidebar" [ref=e12] [cursor=pointer]
+    - navigation "Primary navigation" [ref=e17]:
+      - link "Sandboxes 3" [ref=e18] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e23]: Sandboxes
+        - generic [ref=e24]: "3"
+      - link "Pools 1" [ref=e25] [cursor=pointer]:
+        - /url: /pools
+        - generic [ref=e37]: Pools
+        - generic [ref=e38]: "1"
+      - link "Snapshots 0" [ref=e39] [cursor=pointer]:
+        - /url: /snapshots
+        - generic [ref=e46]: Snapshots
+        - generic [ref=e47]: "0"
+      - link "Stats" [ref=e48] [cursor=pointer]:
+        - /url: /stats
+      - button "Settings" [ref=e54] [cursor=pointer]
+  - generic [ref=e64]:
+    - generic [ref=e65]:
+      - generic [ref=e66]: Sandboxes
+      - generic [ref=e68]:
+        - button "Deploy a new sandbox" [ref=e70] [cursor=pointer]
+        - button "Live updates on" [ref=e72] [cursor=pointer]
+    - main [ref=e78]:
+      - generic [ref=e79]:
+        - generic "Filter sandboxes by state" [ref=e80]:
+          - button "All 3" [pressed] [ref=e81] [cursor=pointer]:
+            - text: All
+            - generic [ref=e82]: "3"
+          - button "running 1" [ref=e83] [cursor=pointer]:
+            - text: running
+            - generic [ref=e84]: "1"
+          - button "paused 1" [ref=e85] [cursor=pointer]:
+            - text: paused
+            - generic [ref=e86]: "1"
+          - button "failed 1" [ref=e87] [cursor=pointer]:
+            - text: failed
+            - generic [ref=e88]: "1"
+        - generic [ref=e89]:
+          - region "Running 1" [ref=e90]:
+            - checkbox "Running 1" [checked]
+            - generic [ref=e93] [cursor=pointer]:
+              - strong [ref=e97]: Running
+              - generic [ref=e98]: "1"
+            - link "Open sandbox sandbox-running" [ref=e100] [cursor=pointer]:
+              - generic [ref=e102]: sandbox-running
+              - generic "opensandbox / sandbox-running-0" [ref=e105]
+              - generic "python:3.12-slim · 1 core / 2 GiB" [ref=e106]:
+                - generic [ref=e107]: python:3.12-slim
+                - generic [ref=e112]: ·
+                - generic [ref=e113]: 1 core / 2 GiB
+              - generic [ref=e118]:
+                - button "Delete sandbox sandbox-running" [ref=e119]
+                - time [ref=e124]: created 4 minutes ago
+          - region "Paused 1" [ref=e125]:
+            - checkbox "Paused 1" [checked]
+            - generic [ref=e128] [cursor=pointer]:
+              - strong [ref=e132]: Paused
+              - generic [ref=e133]: "1"
+            - link "Open sandbox sandbox-paused" [ref=e135] [cursor=pointer]:
+              - generic [ref=e137]: sandbox-paused
+              - generic "opensandbox / sandbox-paused-0" [ref=e140]
+              - generic "python:3.12-slim · 1 core / 2 GiB" [ref=e141]:
+                - generic [ref=e142]: python:3.12-slim
+                - generic [ref=e147]: ·
+                - generic [ref=e148]: 1 core / 2 GiB
+              - generic [ref=e153]:
+                - button "Delete sandbox sandbox-paused" [ref=e154]
+                - time [ref=e159]: created 8 minutes ago
+          - region "Failed 1" [ref=e160]:
+            - checkbox "Failed 1" [checked]
+            - generic [ref=e163] [cursor=pointer]:
+              - strong [ref=e167]: Failed
+              - generic [ref=e168]: "1"
+            - link "Open sandbox sandbox-failed" [ref=e170] [cursor=pointer]:
+              - generic [ref=e172]: sandbox-failed
+              - generic "opensandbox / sandbox-failed-0" [ref=e175]
+              - generic "ubuntu:24.04 · 1 core / 2 GiB" [ref=e176]:
+                - generic [ref=e177]: ubuntu:24.04
+                - generic [ref=e182]: ·
+                - generic [ref=e183]: 1 core / 2 GiB
+              - generic [ref=e188]:
+                - button "Delete sandbox sandbox-failed" [ref=e189]
+                - time [ref=e194]: created 12 minutes ago
+```
