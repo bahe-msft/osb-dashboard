@@ -1,0 +1,4 @@
+2026/08/27 04:19:04 Swapbook target listening on http://127.0.0.1:8082
+Opening Swapbook at http://127.0.0.1:7008/__sb/
+swapbook → target http://127.0.0.1:8082
+open      http://localhost:7008/__sb/

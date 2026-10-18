@@ -1,0 +1,87 @@
+### Page
+- Page URL: http://127.0.0.1:7008/__sb/frame/sandbox-details/states?mode=mock&bg=light&htmx=%2Fassets%2Fthird-party%2Fui%2Fhtmx.min.js&css=%2Fassets%2Fstyles.css&js=%2Fassets%2Fapp.js&arg.fromPool=true&arg.state=paused
+- Page Title: sandbox-pool-1 · OpenSandbox Dashboard
+### Snapshot
+```yaml
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]:
+      - button "OpenSandbox home" [ref=e5] [cursor=pointer]: OS
+      - generic [ref=e6]: OpenSandbox
+      - generic [ref=e7]:
+        - button "Search" [disabled] [ref=e8]
+        - button "Collapse sidebar" [ref=e12] [cursor=pointer]
+    - navigation "Primary navigation" [ref=e17]:
+      - link "Sandboxes 1" [ref=e18] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e23]: Sandboxes
+        - generic [ref=e24]: "1"
+      - link "Pools 1" [ref=e25] [cursor=pointer]:
+        - /url: /pools
+        - generic [ref=e37]: Pools
+        - generic [ref=e38]: "1"
+      - link "Snapshots 0" [ref=e39] [cursor=pointer]:
+        - /url: /snapshots
+        - generic [ref=e46]: Snapshots
+        - generic [ref=e47]: "0"
+      - link "Stats" [ref=e48] [cursor=pointer]:
+        - /url: /stats
+      - button "Settings" [ref=e54] [cursor=pointer]
+  - generic [ref=e64]:
+    - generic [ref=e65]:
+      - generic [ref=e66]:
+        - link "Pools" [ref=e67] [cursor=pointer]:
+          - /url: /pools
+        - generic [ref=e68]: /
+        - link "default-pool" [ref=e69] [cursor=pointer]:
+          - /url: /pools/default-pool
+        - generic [ref=e70]: /
+        - generic [ref=e71]: Sandboxes
+        - generic [ref=e72]: /
+        - generic "sandbox-pool-1" [ref=e73]
+      - generic [ref=e74]:
+        - button "Hide details pane" [ref=e76] [cursor=pointer]
+        - button "Live updates on" [ref=e80] [cursor=pointer]
+    - main [ref=e86]:
+      - generic [ref=e87]:
+        - generic [ref=e88]:
+          - generic [ref=e89]:
+            - generic [ref=e92]:
+              - heading "Paused" [level=1] [ref=e93]
+              - paragraph [ref=e94]:
+                - generic "python:3.12-slim" [ref=e99]
+                - generic [ref=e100]: ·
+                - generic [ref=e101]: 1 core / 2 GiB
+            - generic [ref=e105]:
+              - button "Resume sandbox" [ref=e106] [cursor=pointer]:
+                - generic [ref=e109]: Resume
+              - button "More sandbox actions" [ref=e111] [cursor=pointer]
+          - button "Details" [ref=e118] [cursor=pointer]
+        - generic [ref=e125]:
+          - region "Sandbox terminal" [ref=e126]:
+            - generic [ref=e127]:
+              - generic "Sandbox terminal" [ref=e128]
+              - generic [ref=e129]:
+                - strong [ref=e133]: Terminal unavailable
+                - paragraph [ref=e134]: The sandbox must be running before a terminal can be opened.
+          - complementary [ref=e135]:
+            - region "Details" [ref=e136]:
+              - generic [ref=e137]:
+                - generic [ref=e144]:
+                  - generic [ref=e145]: Created
+                  - strong [ref=e146]:
+                    - time [ref=e147]: 6 minutes ago
+                - generic [ref=e152]:
+                  - generic [ref=e153]: Namespace
+                  - strong [ref=e154]: opensandbox
+                - generic [ref=e161]:
+                  - generic [ref=e162]: Pod
+                  - strong [ref=e163]: default-pool-a1b2c
+                - generic [ref=e176]:
+                  - generic [ref=e177]: Pool
+                  - link "default-pool" [ref=e178] [cursor=pointer]:
+                    - /url: /pools/default-pool
+                - generic [ref=e188]:
+                  - generic [ref=e189]: Discovered via
+                  - strong [ref=e190]: Lifecycle API + BatchSandbox
+```
